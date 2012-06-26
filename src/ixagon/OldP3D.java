@@ -43,7 +43,9 @@ public class OldP3D extends PGraphics {
 	protected int height1;
 
 	public static final String OldP3D = "ixagon.OldP3D";
+	
 	protected boolean[] hints = new boolean[HINT_COUNT];
+	
 	static final int MATRIX_STACK_DEPTH = 32;
 
 	/** The depth buffer. */
