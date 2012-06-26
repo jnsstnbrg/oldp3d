@@ -2,7 +2,10 @@ package ixagon.renderer;
 
 import java.awt.Toolkit;
 import java.awt.image.*;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.*;
+import java.util.zip.GZIPInputStream;
 
 import processing.core.PApplet;
 import processing.core.PGraphics;
@@ -10,7 +13,10 @@ import processing.core.PImage;
 import processing.core.PMatrix;
 import processing.core.PMatrix2D;
 import processing.core.PMatrix3D;
+import processing.core.PShape;
+import processing.core.PShapeSVG;
 import processing.core.PVector;
+import processing.data.XML;
 
 public class OldP3D extends PGraphics {
 
@@ -19,19 +25,31 @@ public class OldP3D extends PGraphics {
 	/*
 	 * Part of the Processing project - http://processing.org
 	 * 
-	 * Copyright (c) 2004-08 Ben Fry and Casey Reas Copyright (c) 2001-04 Massachusetts Institute of Technology
+	 * Copyright (c) 2004-08 Ben Fry and Casey Reas Copyright (c) 2001-04
+	 * Massachusetts Institute of Technology
 	 * 
-	 * This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation; either version 2.1 of the License, or (at your option) any later version.
+	 * This library is free software; you can redistribute it and/or modify it
+	 * under the terms of the GNU Lesser General Public License as published by
+	 * the Free Software Foundation; either version 2.1 of the License, or (at
+	 * your option) any later version.
 	 * 
-	 * This library is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+	 * This library is distributed in the hope that it will be useful, but
+	 * WITHOUT ANY WARRANTY; without even the implied warranty of
+	 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+	 * General Public License for more details.
 	 * 
-	 * You should have received a copy of the GNU Lesser General Public License along with this library; if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	 * You should have received a copy of the GNU Lesser General Public License
+	 * along with this library; if not, write to the Free Software Foundation,
+	 * Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 	 */
 
 	/**
-	 * Subclass of PGraphics that handles 3D rendering. It can render 3D inside a browser window and requires no plug-ins.
+	 * Subclass of PGraphics that handles 3D rendering. It can render 3D inside
+	 * a browser window and requires no plug-ins.
 	 * <p/>
-	 * The renderer is mostly set up based on the structure of the OpenGL API, if you have questions about specifics that aren't covered here, look for reference on the OpenGL implementation of a similar feature.
+	 * The renderer is mostly set up based on the structure of the OpenGL API,
+	 * if you have questions about specifics that aren't covered here, look for
+	 * reference on the OpenGL implementation of a similar feature.
 	 * <p/>
 	 * Lighting and camera implementation by Simon Greenwold.
 	 */
@@ -43,9 +61,9 @@ public class OldP3D extends PGraphics {
 	protected int height1;
 
 	public static final String NOSTALGIA = "ixagon.renderer.OldP3D";
-	
+
 	protected boolean[] hints = new boolean[HINT_COUNT];
-	
+
 	static final int MATRIX_STACK_DEPTH = 32;
 
 	/** The depth buffer. */
@@ -82,7 +100,8 @@ public class OldP3D extends PGraphics {
 	// ////////////////////////////////////////////////////////////
 
 	/**
-	 * Maximum lights by default is 8, which is arbitrary for this renderer, but is the minimum defined by OpenGL
+	 * Maximum lights by default is 8, which is arbitrary for this renderer, but
+	 * is the minimum defined by OpenGL
 	 */
 	public static final int MAX_LIGHTS = 8;
 
@@ -114,12 +133,14 @@ public class OldP3D extends PGraphics {
 	public float[] lightSpotConcentration;
 
 	/**
-	 * Diffuse colors for lights. For an ambient light, this will hold the ambient color. Internally these are stored as numbers between 0 and 1.
+	 * Diffuse colors for lights. For an ambient light, this will hold the
+	 * ambient color. Internally these are stored as numbers between 0 and 1.
 	 */
 	public float[][] lightDiffuse;
 
 	/**
-	 * Specular colors for lights. Internally these are stored as numbers between 0 and 1.
+	 * Specular colors for lights. Internally these are stored as numbers
+	 * between 0 and 1.
 	 */
 	public float[][] lightSpecular;
 
@@ -169,7 +190,9 @@ public class OldP3D extends PGraphics {
 	// ........................................................
 
 	/**
-	 * This is turned on at beginCamera, and off at endCamera Currently we don't support nested begin/end cameras. If we wanted to, this variable would have to become a stack.
+	 * This is turned on at beginCamera, and off at endCamera Currently we don't
+	 * support nested begin/end cameras. If we wanted to, this variable would
+	 * have to become a stack.
 	 */
 	protected boolean manipulatingCamera;
 
@@ -199,9 +222,12 @@ public class OldP3D extends PGraphics {
 	private boolean frustumMode = false;
 
 	/**
-	 * Use PSmoothTriangle for rendering instead of PTriangle? Usually set by calling smooth() or noSmooth()
+	 * Use PSmoothTriangle for rendering instead of PTriangle? Usually set by
+	 * calling smooth() or noSmooth()
 	 */
-	static protected boolean s_enableAccurateTextures = false; // maybe just use smooth instead?
+	static protected boolean s_enableAccurateTextures = false; // maybe just use
+																// smooth
+																// instead?
 
 	/** Used for anti-aliased and perspective corrected rendering. */
 	public JSmoothTriangle smoothTriangle;
@@ -293,7 +319,9 @@ public class OldP3D extends PGraphics {
 	// public void setPath(String path)
 
 	/**
-	 * Called in response to a resize event, handles setting the new width and height internally, as well as re-allocating the pixel buffer for the new size.
+	 * Called in response to a resize event, handles setting the new width and
+	 * height internally, as well as re-allocating the pixel buffer for the new
+	 * size.
 	 * 
 	 * Note that this will nuke any cameraMode() settings.
 	 */
@@ -376,7 +404,8 @@ public class OldP3D extends PGraphics {
 
 		} else {
 			// when not the main drawing surface, need to set the zbuffer,
-			// because there's a possibility that background() will not be called
+			// because there's a possibility that background() will not be
+			// called
 			Arrays.fill(zbuffer, Float.MAX_VALUE);
 		}
 
@@ -414,9 +443,11 @@ public class OldP3D extends PGraphics {
 		lightSpecular(0, 0, 0);
 
 		/*
-		 * // reset lines lineCount = 0; if (line != null) line.reset(); // is this necessary? pathCount = 0;
+		 * // reset lines lineCount = 0; if (line != null) line.reset(); // is
+		 * this necessary? pathCount = 0;
 		 * 
-		 * // reset triangles triangleCount = 0; if (triangle != null) triangle.reset(); // necessary?
+		 * // reset triangles triangleCount = 0; if (triangle != null)
+		 * triangle.reset(); // necessary?
 		 */
 
 		shapeFirst = 0;
@@ -428,7 +459,9 @@ public class OldP3D extends PGraphics {
 	}
 
 	/**
-	 * See notes in PGraphics. If z-sorting has been turned on, then the triangles will all be quicksorted here (to make alpha work more properly) and then blit to the screen.
+	 * See notes in PGraphics. If z-sorting has been turned on, then the
+	 * triangles will all be quicksorted here (to make alpha work more properly)
+	 * and then blit to the screen.
 	 */
 	@Override
 	public void endDraw() {
@@ -593,7 +626,8 @@ public class OldP3D extends PGraphics {
 		// transform, light, and clip
 		endShapeLighting(lightCount > 0 && fill);
 
-		// convert points from camera space (VX, VY, VZ) to screen space (X, Y, Z)
+		// convert points from camera space (VX, VY, VZ) to screen space (X, Y,
+		// Z)
 		// (this appears to be wasted time with the OpenGL renderer)
 		endShapeCameraToScreen(shapeFirst, shapeLastPlusClipped);
 
@@ -636,10 +670,14 @@ public class OldP3D extends PGraphics {
 		for (int i = start; i < stop; i++) {
 			float vertex[] = vertices[i];
 
-			vertex[VX] = modelview.m00 * vertex[X] + modelview.m01 * vertex[Y] + modelview.m02 * vertex[Z] + modelview.m03;
-			vertex[VY] = modelview.m10 * vertex[X] + modelview.m11 * vertex[Y] + modelview.m12 * vertex[Z] + modelview.m13;
-			vertex[VZ] = modelview.m20 * vertex[X] + modelview.m21 * vertex[Y] + modelview.m22 * vertex[Z] + modelview.m23;
-			vertex[VW] = modelview.m30 * vertex[X] + modelview.m31 * vertex[Y] + modelview.m32 * vertex[Z] + modelview.m33;
+			vertex[VX] = modelview.m00 * vertex[X] + modelview.m01 * vertex[Y]
+					+ modelview.m02 * vertex[Z] + modelview.m03;
+			vertex[VY] = modelview.m10 * vertex[X] + modelview.m11 * vertex[Y]
+					+ modelview.m12 * vertex[Z] + modelview.m13;
+			vertex[VZ] = modelview.m20 * vertex[X] + modelview.m21 * vertex[Y]
+					+ modelview.m22 * vertex[Z] + modelview.m23;
+			vertex[VW] = modelview.m30 * vertex[X] + modelview.m31 * vertex[Y]
+					+ modelview.m32 * vertex[Z] + modelview.m33;
 
 			// normalize
 			if (vertex[VW] != 0 && vertex[VW] != 1) {
@@ -848,10 +886,13 @@ public class OldP3D extends PGraphics {
 
 	protected void endShapeLighting(boolean lights) {
 		if (lights) {
-			// If the lighting does not depend on vertex position and there is a single
-			// normal specified for this shape, go ahead and apply the same lighting
+			// If the lighting does not depend on vertex position and there is a
+			// single
+			// normal specified for this shape, go ahead and apply the same
+			// lighting
 			// contribution to every vertex in this shape (one lighting calc!)
-			if (!lightingDependsOnVertexPosition && normalMode == NORMAL_MODE_SHAPE) {
+			if (!lightingDependsOnVertexPosition
+					&& normalMode == NORMAL_MODE_SHAPE) {
 				calcLightingContribution(shapeFirst, tempLightingContribution);
 				for (int tri = 0; tri < triangleCount; tri++) {
 					lightTriangle(tri, tempLightingContribution);
@@ -877,10 +918,14 @@ public class OldP3D extends PGraphics {
 		for (int i = start; i < stop; i++) {
 			float vx[] = vertices[i];
 
-			float ox = projection.m00 * vx[VX] + projection.m01 * vx[VY] + projection.m02 * vx[VZ] + projection.m03 * vx[VW];
-			float oy = projection.m10 * vx[VX] + projection.m11 * vx[VY] + projection.m12 * vx[VZ] + projection.m13 * vx[VW];
-			float oz = projection.m20 * vx[VX] + projection.m21 * vx[VY] + projection.m22 * vx[VZ] + projection.m23 * vx[VW];
-			float ow = projection.m30 * vx[VX] + projection.m31 * vx[VY] + projection.m32 * vx[VZ] + projection.m33 * vx[VW];
+			float ox = projection.m00 * vx[VX] + projection.m01 * vx[VY]
+					+ projection.m02 * vx[VZ] + projection.m03 * vx[VW];
+			float oy = projection.m10 * vx[VX] + projection.m11 * vx[VY]
+					+ projection.m12 * vx[VZ] + projection.m13 * vx[VW];
+			float oz = projection.m20 * vx[VX] + projection.m21 * vx[VY]
+					+ projection.m22 * vx[VZ] + projection.m23 * vx[VW];
+			float ow = projection.m30 * vx[VX] + projection.m31 * vx[VY]
+					+ projection.m32 * vx[VZ] + projection.m33 * vx[VW];
 
 			if (ow != 0 && ow != 1) {
 				ox /= ow;
@@ -907,7 +952,8 @@ public class OldP3D extends PGraphics {
 		points[pointCount][VERTEX1] = a;
 		// points[pointCount][STROKE_MODE] = strokeCap | strokeJoin;
 		points[pointCount][STROKE_COLOR] = strokeColor;
-		// points[pointCount][STROKE_WEIGHT] = (int) (strokeWeight + 0.5f); // hmm
+		// points[pointCount][STROKE_WEIGHT] = (int) (strokeWeight + 0.5f); //
+		// hmm
 		pointCount++;
 	}
 
@@ -934,29 +980,42 @@ public class OldP3D extends PGraphics {
 	// alternative implementations of point rendering code...
 
 	/*
-	 * int sx = (int) (screenX(x, y, z) + 0.5f); int sy = (int) (screenY(x, y, z) + 0.5f);
+	 * int sx = (int) (screenX(x, y, z) + 0.5f); int sy = (int) (screenY(x, y,
+	 * z) + 0.5f);
 	 * 
-	 * int index = sy*width + sx; pixels[index] = strokeColor; zbuffer[index] = screenZ(x, y, z);
+	 * int index = sy*width + sx; pixels[index] = strokeColor; zbuffer[index] =
+	 * screenZ(x, y, z);
 	 */
 
 	/*
-	 * protected void renderPoints(int start, int stop) { for (int i = start; i < stop; i++) { float a[] = vertices[points[i][VERTEX1]];
+	 * protected void renderPoints(int start, int stop) { for (int i = start; i
+	 * < stop; i++) { float a[] = vertices[points[i][VERTEX1]];
 	 * 
 	 * line.reset();
 	 * 
-	 * line.setIntensities(a[SR], a[SG], a[SB], a[SA], a[SR], a[SG], a[SB], a[SA]);
+	 * line.setIntensities(a[SR], a[SG], a[SB], a[SA], a[SR], a[SG], a[SB],
+	 * a[SA]);
 	 * 
-	 * line.setVertices(a[TX], a[TY], a[TZ], a[TX] + 0.5f, a[TY] + 0.5f, a[TZ] + 0.5f);
+	 * line.setVertices(a[TX], a[TY], a[TZ], a[TX] + 0.5f, a[TY] + 0.5f, a[TZ] +
+	 * 0.5f);
 	 * 
 	 * line.draw(); } }
 	 */
 
 	/*
-	 * // handle points with an actual stroke weight (or scaled by renderer) private void point3(float x, float y, float z, int color) { // need to get scaled version of the stroke float x1 = screenX(x - 0.5f, y - 0.5f, z); float y1 = screenY(x - 0.5f, y - 0.5f, z); float x2 = screenX(x + 0.5f, y + 0.5f, z); float y2 = screenY(x + 0.5f, y + 0.5f, z);
+	 * // handle points with an actual stroke weight (or scaled by renderer)
+	 * private void point3(float x, float y, float z, int color) { // need to
+	 * get scaled version of the stroke float x1 = screenX(x - 0.5f, y - 0.5f,
+	 * z); float y1 = screenY(x - 0.5f, y - 0.5f, z); float x2 = screenX(x +
+	 * 0.5f, y + 0.5f, z); float y2 = screenY(x + 0.5f, y + 0.5f, z);
 	 * 
-	 * float weight = (abs(x2 - x1) + abs(y2 - y1)) / 2f; if (weight < 1.5f) { int xx = (int) ((x1 + x2) / 2f); int yy = (int) ((y1 + y2) / 2f); //point0(xx, yy, z, color); zbuffer[yy*width + xx] = screenZ(x, y, z); //stencil?
+	 * float weight = (abs(x2 - x1) + abs(y2 - y1)) / 2f; if (weight < 1.5f) {
+	 * int xx = (int) ((x1 + x2) / 2f); int yy = (int) ((y1 + y2) / 2f);
+	 * //point0(xx, yy, z, color); zbuffer[yy*width + xx] = screenZ(x, y, z);
+	 * //stencil?
 	 * 
-	 * } else { // actually has some weight, need to draw shapes instead // these will be } }
+	 * } else { // actually has some weight, need to draw shapes instead //
+	 * these will be } }
 	 */
 
 	protected void rawPoints(int start, int stop) {
@@ -1042,7 +1101,8 @@ public class OldP3D extends PGraphics {
 
 	protected void renderLines(int start, int stop) {
 		for (int i = start; i < stop; i++) {
-			renderLineVertices(vertices[lines[i][VERTEX1]], vertices[lines[i][VERTEX2]]);
+			renderLineVertices(vertices[lines[i][VERTEX1]],
+					vertices[lines[i][VERTEX2]]);
 		}
 	}
 
@@ -1065,7 +1125,10 @@ public class OldP3D extends PGraphics {
 		// boundary. Search "diamond exit rule" for info the OpenGL approach.
 
 		/*
-		 * // removing for 0149 with the return of P2D if (drawing2D() && a[Z] == 0) { a[TX] += 0.01; a[TY] += 0.01; a[VX] += 0.01*a[VW]; a[VY] += 0.01*a[VW]; b[TX] += 0.01; b[TY] += 0.01; b[VX] += 0.01*b[VW]; b[VY] += 0.01*b[VW]; }
+		 * // removing for 0149 with the return of P2D if (drawing2D() && a[Z]
+		 * == 0) { a[TX] += 0.01; a[TY] += 0.01; a[VX] += 0.01*a[VW]; a[VY] +=
+		 * 0.01*a[VW]; b[TX] += 0.01; b[TY] += 0.01; b[VX] += 0.01*b[VW]; b[VY]
+		 * += 0.01*b[VW]; }
 		 */
 		// end 2d-hack
 
@@ -1113,38 +1176,53 @@ public class OldP3D extends PGraphics {
 				smoothTriangle.interpARGB = true; // ?
 
 				// render first triangle for thick line
-				smoothTriangle.setVertices(ax1, ay1, a[TZ], bx2, by2, b[TZ], ax2, ay2, a[TZ]);
-				smoothTriangle.setIntensities(a[SR], a[SG], a[SB], a[SA], b[SR], b[SG], b[SB], b[SA], a[SR], a[SG], a[SB], a[SA]);
+				smoothTriangle.setVertices(ax1, ay1, a[TZ], bx2, by2, b[TZ],
+						ax2, ay2, a[TZ]);
+				smoothTriangle.setIntensities(a[SR], a[SG], a[SB], a[SA],
+						b[SR], b[SG], b[SB], b[SA], a[SR], a[SG], a[SB], a[SA]);
 				smoothTriangle.render();
 
 				// render second triangle for thick line
-				smoothTriangle.setVertices(ax1, ay1, a[TZ], bx2, by2, b[TZ], bx1, by1, b[TZ]);
-				smoothTriangle.setIntensities(a[SR], a[SG], a[SB], a[SA], b[SR], b[SG], b[SB], b[SA], b[SR], b[SG], b[SB], b[SA]);
+				smoothTriangle.setVertices(ax1, ay1, a[TZ], bx2, by2, b[TZ],
+						bx1, by1, b[TZ]);
+				smoothTriangle.setIntensities(a[SR], a[SG], a[SB], a[SA],
+						b[SR], b[SG], b[SB], b[SA], b[SR], b[SG], b[SB], b[SA]);
 				smoothTriangle.render();
 
 			} else {
 				triangle.reset();
 
 				// render first triangle for thick line
-				triangle.setVertices(ax1, ay1, a[TZ], bx2, by2, b[TZ], ax2, ay2, a[TZ]);
-				triangle.setIntensities(a[SR], a[SG], a[SB], a[SA], b[SR], b[SG], b[SB], b[SA], a[SR], a[SG], a[SB], a[SA]);
+				triangle.setVertices(ax1, ay1, a[TZ], bx2, by2, b[TZ], ax2,
+						ay2, a[TZ]);
+				triangle.setIntensities(a[SR], a[SG], a[SB], a[SA], b[SR],
+						b[SG], b[SB], b[SA], a[SR], a[SG], a[SB], a[SA]);
 				triangle.render();
 
 				// render second triangle for thick line
-				triangle.setVertices(ax1, ay1, a[TZ], bx2, by2, b[TZ], bx1, by1, b[TZ]);
-				triangle.setIntensities(a[SR], a[SG], a[SB], a[SA], b[SR], b[SG], b[SB], b[SA], b[SR], b[SG], b[SB], b[SA]);
+				triangle.setVertices(ax1, ay1, a[TZ], bx2, by2, b[TZ], bx1,
+						by1, b[TZ]);
+				triangle.setIntensities(a[SR], a[SG], a[SB], a[SA], b[SR],
+						b[SG], b[SB], b[SA], b[SR], b[SG], b[SB], b[SA]);
 				triangle.render();
 			}
 
 		} else {
 			line.reset();
 
-			line.setIntensities(a[SR], a[SG], a[SB], a[SA], b[SR], b[SG], b[SB], b[SA]);
+			line.setIntensities(a[SR], a[SG], a[SB], a[SA], b[SR], b[SG],
+					b[SB], b[SA]);
 
 			line.setVertices(a[TX], a[TY], a[TZ], b[TX], b[TY], b[TZ]);
 
 			/*
-			 * // Seems okay to remove this because these vertices are not used again, // but if problems arise, this needs to be uncommented because the above // change is destructive and may need to be undone before proceeding. if (drawing2D() && a[MZ] == 0) { a[X] -= 0.01; a[Y] -= 0.01; a[VX] -= 0.01*a[VW]; a[VY] -= 0.01*a[VW]; b[X] -= 0.01; b[Y] -= 0.01; b[VX] -= 0.01*b[VW]; b[VY] -= 0.01*b[VW]; }
+			 * // Seems okay to remove this because these vertices are not used
+			 * again, // but if problems arise, this needs to be uncommented
+			 * because the above // change is destructive and may need to be
+			 * undone before proceeding. if (drawing2D() && a[MZ] == 0) { a[X]
+			 * -= 0.01; a[Y] -= 0.01; a[VX] -= 0.01*a[VW]; a[VY] -= 0.01*a[VW];
+			 * b[X] -= 0.01; b[Y] -= 0.01; b[VX] -= 0.01*b[VW]; b[VY] -=
+			 * 0.01*b[VW]; }
 			 */
 
 			line.draw();
@@ -1152,9 +1230,17 @@ public class OldP3D extends PGraphics {
 	}
 
 	/**
-	 * Handle echoing line data to a raw shape recording renderer. This has been broken out of the renderLines() procedure so that renderLines() can be optimized per-renderer without having to deal with this code. This code, for instance, will stay the same when OpenGL is in use, but renderLines() can be optimized significantly. <br/>
+	 * Handle echoing line data to a raw shape recording renderer. This has been
+	 * broken out of the renderLines() procedure so that renderLines() can be
+	 * optimized per-renderer without having to deal with this code. This code,
+	 * for instance, will stay the same when OpenGL is in use, but renderLines()
+	 * can be optimized significantly. <br/>
 	 * <br/>
-	 * Values for start and stop are specified, so that in the future, sorted rendering can be implemented, which will require sequences of lines, triangles, or points to be rendered in the neighborhood of one another. That is, if we're gonna depth sort, we can't just draw all the triangles and then draw all the lines, cuz that defeats the purpose.
+	 * Values for start and stop are specified, so that in the future, sorted
+	 * rendering can be implemented, which will require sequences of lines,
+	 * triangles, or points to be rendered in the neighborhood of one another.
+	 * That is, if we're gonna depth sort, we can't just draw all the triangles
+	 * and then draw all the lines, cuz that defeats the purpose.
 	 */
 	protected void rawLines(int start, int stop) {
 		raw.colorMode(RGB, 1);
@@ -1274,9 +1360,12 @@ public class OldP3D extends PGraphics {
 			cd = interpolateClipVertex(ca, cc);
 			ce = interpolateClipVertex(cb, cc);
 			addTriangleWithoutClip(ca, cd, cb);
-			// System.out.println("ca: " + ca + ", " + vertices[ca][VX] + ", " + vertices[ca][VY] + ", " + vertices[ca][VZ]);
-			// System.out.println("cd: " + cd + ", " + vertices[cd][VX] + ", " + vertices[cd][VY] + ", " + vertices[cd][VZ]);
-			// System.out.println("cb: " + cb + ", " + vertices[cb][VX] + ", " + vertices[cb][VY] + ", " + vertices[cb][VZ]);
+			// System.out.println("ca: " + ca + ", " + vertices[ca][VX] + ", " +
+			// vertices[ca][VY] + ", " + vertices[ca][VZ]);
+			// System.out.println("cd: " + cd + ", " + vertices[cd][VX] + ", " +
+			// vertices[cd][VY] + ", " + vertices[cd][VZ]);
+			// System.out.println("cb: " + cb + ", " + vertices[cb][VX] + ", " +
+			// vertices[cb][VY] + ", " + vertices[cb][VZ]);
 			addTriangleWithoutClip(cb, cd, ce);
 		}
 	}
@@ -1305,7 +1394,8 @@ public class OldP3D extends PGraphics {
 		float pa = (cameraNear - bz) / dz;
 		float pb = 1 - pa;
 
-		vertex(pa * va[X] + pb * vb[X], pa * va[Y] + pb * vb[Y], pa * va[Z] + pb * vb[Z]);
+		vertex(pa * va[X] + pb * vb[X], pa * va[Y] + pb * vb[Y], pa * va[Z]
+				+ pb * vb[Z]);
 		int irv = vertexCount - 1;
 		shapeLastPlusClipped++;
 
@@ -1364,7 +1454,8 @@ public class OldP3D extends PGraphics {
 			int temp[][] = new int[triangleCount << 1][TRIANGLE_FIELD_COUNT];
 			System.arraycopy(triangles, 0, temp, 0, triangleCount);
 			triangles = temp;
-			// message(CHATTER, "allocating more triangles " + triangles.length);
+			// message(CHATTER, "allocating more triangles " +
+			// triangles.length);
 			float ftemp[][][] = new float[triangleCount << 1][3][TRI_COLOR_COUNT];
 			System.arraycopy(triangleColors, 0, ftemp, 0, triangleCount);
 			triangleColors = ftemp;
@@ -1386,14 +1477,19 @@ public class OldP3D extends PGraphics {
 	/**
 	 * Triangulate the current polygon. <BR>
 	 * <BR>
-	 * Simple ear clipping polygon triangulation adapted from code by John W. Ratcliff (jratcliff at verant.com). Presumably <A HREF="http://www.flipcode.org/cgi-bin/fcarticles.cgi?show=63943">this</A> bit of code from the web.
+	 * Simple ear clipping polygon triangulation adapted from code by John W.
+	 * Ratcliff (jratcliff at verant.com). Presumably <A
+	 * HREF="http://www.flipcode.org/cgi-bin/fcarticles.cgi?show=63943">this</A>
+	 * bit of code from the web.
 	 */
 	protected void addPolygonTriangles() {
 		if (vertexOrder.length != vertices.length) {
 			int[] temp = new int[vertices.length];
 			// vertex_start may not be zero, might need to keep old stuff around
-			// also, copy vertexOrder.length, not vertexCount because vertexCount
-			// may be larger than vertexOrder.length (since this is a post-processing
+			// also, copy vertexOrder.length, not vertexCount because
+			// vertexCount
+			// may be larger than vertexOrder.length (since this is a
+			// post-processing
 			// step that happens after the vertex arrays are built).
 			PApplet.arrayCopy(vertexOrder, temp, vertexOrder.length);
 			vertexOrder = temp;
@@ -1415,13 +1511,18 @@ public class OldP3D extends PGraphics {
 		// hurting my head on the math.
 
 		/*
-		 * // trying to track down bug #774 for (int i = vertex_start; i < vertex_end; i++) { if (i > vertex_start) { if (vertices[i-1][MX] == vertices[i][MX] && vertices[i-1][MY] == vertices[i][MY]) { System.out.print("**** " ); } } System.out.println(i + " " + vertices[i][MX] + " " + vertices[i][MY]); } System.out.println();
+		 * // trying to track down bug #774 for (int i = vertex_start; i <
+		 * vertex_end; i++) { if (i > vertex_start) { if (vertices[i-1][MX] ==
+		 * vertices[i][MX] && vertices[i-1][MY] == vertices[i][MY]) {
+		 * System.out.print("**** " ); } } System.out.println(i + " " +
+		 * vertices[i][MX] + " " + vertices[i][MY]); } System.out.println();
 		 */
 
 		// first we check if the polygon goes clockwise or counterclockwise
 		float area = 0;
 		for (int p = shapeLast - 1, q = shapeFirst; q < shapeLast; p = q++) {
-			area += (vertices[q][d1] * vertices[p][d2] - vertices[p][d1] * vertices[q][d2]);
+			area += (vertices[q][d1] * vertices[p][d2] - vertices[p][d1]
+					* vertices[q][d2]);
 		}
 		// rather than checking for the perpendicular case first, only do it
 		// when the area calculates to zero. checking for perpendicular would be
@@ -1454,7 +1555,8 @@ public class OldP3D extends PGraphics {
 
 			// re-calculate the area, with what should be good values
 			for (int p = shapeLast - 1, q = shapeFirst; q < shapeLast; p = q++) {
-				area += (vertices[q][d1] * vertices[p][d2] - vertices[p][d1] * vertices[q][d2]);
+				area += (vertices[q][d1] * vertices[p][d2] - vertices[p][d1]
+						* vertices[q][d2]);
 			}
 		}
 
@@ -1463,7 +1565,9 @@ public class OldP3D extends PGraphics {
 		// http://dev.processing.org/bugs/show_bug.cgi?id=97
 		float vfirst[] = vertices[shapeFirst];
 		float vlast[] = vertices[shapeLast - 1];
-		if ((abs(vfirst[X] - vlast[X]) < EPSILON) && (abs(vfirst[Y] - vlast[Y]) < EPSILON) && (abs(vfirst[Z] - vlast[Z]) < EPSILON)) {
+		if ((abs(vfirst[X] - vlast[X]) < EPSILON)
+				&& (abs(vfirst[Y] - vlast[Y]) < EPSILON)
+				&& (abs(vfirst[Z] - vlast[Z]) < EPSILON)) {
 			shapeLast--;
 		}
 
@@ -1505,10 +1609,14 @@ public class OldP3D extends PGraphics {
 				w = 0; // next
 
 			// Upgrade values to doubles, and multiply by 10 so that we can have
-			// some better accuracy as we tessellate. This seems to have negligible
-			// speed differences on Windows and Intel Macs, but causes a 50% speed
-			// drop for PPC Macs with the bug's example code that draws ~200 points
-			// in a concave polygon. Apple has abandoned PPC so we may as well too.
+			// some better accuracy as we tessellate. This seems to have
+			// negligible
+			// speed differences on Windows and Intel Macs, but causes a 50%
+			// speed
+			// drop for PPC Macs with the bug's example code that draws ~200
+			// points
+			// in a concave polygon. Apple has abandoned PPC so we may as well
+			// too.
 			// http://dev.processing.org/bugs/show_bug.cgi?id=774
 
 			// triangle A B C
@@ -1572,10 +1680,14 @@ public class OldP3D extends PGraphics {
 	}
 
 	private void toWorldNormal(float nx, float ny, float nz, float[] out) {
-		out[0] = modelviewInv.m00 * nx + modelviewInv.m10 * ny + modelviewInv.m20 * nz + modelviewInv.m30;
-		out[1] = modelviewInv.m01 * nx + modelviewInv.m11 * ny + modelviewInv.m21 * nz + modelviewInv.m31;
-		out[2] = modelviewInv.m02 * nx + modelviewInv.m12 * ny + modelviewInv.m22 * nz + modelviewInv.m32;
-		out[3] = modelviewInv.m03 * nx + modelviewInv.m13 * ny + modelviewInv.m23 * nz + modelviewInv.m33;
+		out[0] = modelviewInv.m00 * nx + modelviewInv.m10 * ny
+				+ modelviewInv.m20 * nz + modelviewInv.m30;
+		out[1] = modelviewInv.m01 * nx + modelviewInv.m11 * ny
+				+ modelviewInv.m21 * nz + modelviewInv.m31;
+		out[2] = modelviewInv.m02 * nx + modelviewInv.m12 * ny
+				+ modelviewInv.m22 * nz + modelviewInv.m32;
+		out[3] = modelviewInv.m03 * nx + modelviewInv.m13 * ny
+				+ modelviewInv.m23 * nz + modelviewInv.m33;
 
 		if (out[3] != 0 && out[3] != 1) {
 			// divide by perspective coordinate
@@ -1601,7 +1713,8 @@ public class OldP3D extends PGraphics {
 		calcLightingContribution(vIndex, contribution, false);
 	}
 
-	private void calcLightingContribution(int vIndex, float[] contribution, boolean normalIsWorld) {
+	private void calcLightingContribution(int vIndex, float[] contribution,
+			boolean normalIsWorld) {
 		float[] v = vertices[vIndex];
 
 		float sr = v[SPR];
@@ -1699,8 +1812,10 @@ public class OldP3D extends PGraphics {
 			if (lightType[i] == AMBIENT) {
 				if (lightFalloffQuadratic[i] != 0 || lightFalloffLinear[i] != 0) {
 					// Falloff depends on distance
-					float distSq = mag(lightPosition[i].x - wx, lightPosition[i].y - wy, lightPosition[i].z - wz);
-					denom += lightFalloffQuadratic[i] * distSq + lightFalloffLinear[i] * sqrt(distSq);
+					float distSq = mag(lightPosition[i].x - wx,
+							lightPosition[i].y - wy, lightPosition[i].z - wz);
+					denom += lightFalloffQuadratic[i] * distSq
+							+ lightFalloffLinear[i] * sqrt(distSq);
 				}
 				if (denom == 0)
 					denom = 1;
@@ -1727,7 +1842,8 @@ public class OldP3D extends PGraphics {
 					if (n_dot_li <= 0) {
 						continue;
 					}
-				} else { // Point or spot light (must deal also with light location)
+				} else { // Point or spot light (must deal also with light
+							// location)
 					lix = lightPosition[i].x - wx;
 					liy = lightPosition[i].y - wy;
 					liz = lightPosition[i].z - wz;
@@ -1745,17 +1861,22 @@ public class OldP3D extends PGraphics {
 					}
 
 					if (lightType[i] == SPOT) { // Must deal with spot cone
-						lightDir_dot_li = -(lightNormal[i].x * lix + lightNormal[i].y * liy + lightNormal[i].z * liz);
+						lightDir_dot_li = -(lightNormal[i].x * lix
+								+ lightNormal[i].y * liy + lightNormal[i].z
+								* liz);
 						// Outside of spot cone
 						if (lightDir_dot_li <= lightSpotAngleCos[i]) {
 							continue;
 						}
-						spotTerm = (float) Math.pow(lightDir_dot_li, lightSpotConcentration[i]);
+						spotTerm = (float) Math.pow(lightDir_dot_li,
+								lightSpotConcentration[i]);
 					}
 
-					if (lightFalloffQuadratic[i] != 0 || lightFalloffLinear[i] != 0) {
+					if (lightFalloffQuadratic[i] != 0
+							|| lightFalloffLinear[i] != 0) {
 						// Falloff depends on distance
-						denom += lightFalloffQuadratic[i] * distSq + lightFalloffLinear[i] * (float) sqrt(distSq);
+						denom += lightFalloffQuadratic[i] * distSq
+								+ lightFalloffLinear[i] * (float) sqrt(distSq);
 					}
 				}
 				// Directional, point, or spot light:
@@ -1772,7 +1893,8 @@ public class OldP3D extends PGraphics {
 				// SPECULAR
 
 				// If the material and light have a specular component.
-				if ((sr > 0 || sg > 0 || sb > 0) && (lightSpecular[i][0] > 0 || lightSpecular[i][1] > 0 || lightSpecular[i][2] > 0)) {
+				if ((sr > 0 || sg > 0 || sb > 0)
+						&& (lightSpecular[i][0] > 0 || lightSpecular[i][1] > 0 || lightSpecular[i][2] > 0)) {
 
 					float vmag = mag(wx, wy, wz);
 					if (vmag != 0) {
@@ -1794,9 +1916,12 @@ public class OldP3D extends PGraphics {
 					if (s_dot_n > 0) {
 						s_dot_n = (float) Math.pow(s_dot_n, shine);
 						mul = s_dot_n * spotTerm / denom;
-						contribution[LIGHT_SPECULAR_R] += lightSpecular[i][0] * mul;
-						contribution[LIGHT_SPECULAR_G] += lightSpecular[i][1] * mul;
-						contribution[LIGHT_SPECULAR_B] += lightSpecular[i][2] * mul;
+						contribution[LIGHT_SPECULAR_R] += lightSpecular[i][0]
+								* mul;
+						contribution[LIGHT_SPECULAR_G] += lightSpecular[i][1]
+								* mul;
+						contribution[LIGHT_SPECULAR_B] += lightSpecular[i][2]
+								* mul;
 					}
 
 				}
@@ -1811,9 +1936,12 @@ public class OldP3D extends PGraphics {
 	private void applyLightingContribution(int vIndex, float[] contribution) {
 		float[] v = vertices[vIndex];
 
-		v[R] = clamp(v[ER] + v[AR] * contribution[LIGHT_AMBIENT_R] + v[DR] * contribution[LIGHT_DIFFUSE_R]);
-		v[G] = clamp(v[EG] + v[AG] * contribution[LIGHT_AMBIENT_G] + v[DG] * contribution[LIGHT_DIFFUSE_G]);
-		v[B] = clamp(v[EB] + v[AB] * contribution[LIGHT_AMBIENT_B] + v[DB] * contribution[LIGHT_DIFFUSE_B]);
+		v[R] = clamp(v[ER] + v[AR] * contribution[LIGHT_AMBIENT_R] + v[DR]
+				* contribution[LIGHT_DIFFUSE_R]);
+		v[G] = clamp(v[EG] + v[AG] * contribution[LIGHT_AMBIENT_G] + v[DG]
+				* contribution[LIGHT_DIFFUSE_G]);
+		v[B] = clamp(v[EB] + v[AB] * contribution[LIGHT_AMBIENT_B] + v[DB]
+				* contribution[LIGHT_DIFFUSE_B]);
 		v[A] = clamp(v[DA]);
 
 		v[SPR] = clamp(v[SPR] * contribution[LIGHT_SPECULAR_R]);
@@ -1849,13 +1977,17 @@ public class OldP3D extends PGraphics {
 		// triColor[TRI_SPECULAR_A] = v[SPA];
 	}
 
-	private void copyVertexColor(int triIndex, int index, int colorIndex, float[] contrib) {
+	private void copyVertexColor(int triIndex, int index, int colorIndex,
+			float[] contrib) {
 		float[] triColor = triangleColors[triIndex][colorIndex];
 		float[] v = vertices[index];
 
-		triColor[TRI_DIFFUSE_R] = clamp(v[ER] + v[AR] * contrib[LIGHT_AMBIENT_R] + v[DR] * contrib[LIGHT_DIFFUSE_R]);
-		triColor[TRI_DIFFUSE_G] = clamp(v[EG] + v[AG] * contrib[LIGHT_AMBIENT_G] + v[DG] * contrib[LIGHT_DIFFUSE_G]);
-		triColor[TRI_DIFFUSE_B] = clamp(v[EB] + v[AB] * contrib[LIGHT_AMBIENT_B] + v[DB] * contrib[LIGHT_DIFFUSE_B]);
+		triColor[TRI_DIFFUSE_R] = clamp(v[ER] + v[AR]
+				* contrib[LIGHT_AMBIENT_R] + v[DR] * contrib[LIGHT_DIFFUSE_R]);
+		triColor[TRI_DIFFUSE_G] = clamp(v[EG] + v[AG]
+				* contrib[LIGHT_AMBIENT_G] + v[DG] * contrib[LIGHT_DIFFUSE_G]);
+		triColor[TRI_DIFFUSE_B] = clamp(v[EB] + v[AB]
+				* contrib[LIGHT_AMBIENT_B] + v[DB] * contrib[LIGHT_DIFFUSE_B]);
 		triColor[TRI_DIFFUSE_A] = clamp(v[DA]);
 
 		triColor[TRI_SPECULAR_R] = clamp(v[SPR] * contrib[LIGHT_SPECULAR_R]);
@@ -1879,7 +2011,13 @@ public class OldP3D extends PGraphics {
 		// This wont be used currently because lightCount == 0 is don't use
 		// lighting at all... So. OK. If that ever changes, use the below:
 		/*
-		 * if (lightCount == 0) { vIndex = triangles[triIndex][VERTEX1]; copy_emissive_vertex_color_to_triangle(triIndex, vIndex, 0); vIndex = triangles[triIndex][VERTEX2]; copy_emissive_vertex_color_to_triangle(triIndex, vIndex, 1); vIndex = triangles[triIndex][VERTEX3]; copy_emissive_vertex_color_to_triangle(triIndex, vIndex, 2); return; }
+		 * if (lightCount == 0) { vIndex = triangles[triIndex][VERTEX1];
+		 * copy_emissive_vertex_color_to_triangle(triIndex, vIndex, 0); vIndex =
+		 * triangles[triIndex][VERTEX2];
+		 * copy_emissive_vertex_color_to_triangle(triIndex, vIndex, 1); vIndex =
+		 * triangles[triIndex][VERTEX3];
+		 * copy_emissive_vertex_color_to_triangle(triIndex, vIndex, 2); return;
+		 * }
 		 */
 
 		// In MANUAL_VERTEX_NORMAL mode, we have a specific normal
@@ -1912,21 +2050,32 @@ public class OldP3D extends PGraphics {
 			int vIndex3 = triangles[triIndex][VERTEX3];
 
 			/*
-			 * dv1[0] = vertices[vIndex2][VX] - vertices[vIndex][VX]; dv1[1] = vertices[vIndex2][VY] - vertices[vIndex][VY]; dv1[2] = vertices[vIndex2][VZ] - vertices[vIndex][VZ];
+			 * dv1[0] = vertices[vIndex2][VX] - vertices[vIndex][VX]; dv1[1] =
+			 * vertices[vIndex2][VY] - vertices[vIndex][VY]; dv1[2] =
+			 * vertices[vIndex2][VZ] - vertices[vIndex][VZ];
 			 * 
-			 * dv2[0] = vertices[vIndex3][VX] - vertices[vIndex][VX]; dv2[1] = vertices[vIndex3][VY] - vertices[vIndex][VY]; dv2[2] = vertices[vIndex3][VZ] - vertices[vIndex][VZ];
+			 * dv2[0] = vertices[vIndex3][VX] - vertices[vIndex][VX]; dv2[1] =
+			 * vertices[vIndex3][VY] - vertices[vIndex][VY]; dv2[2] =
+			 * vertices[vIndex3][VZ] - vertices[vIndex][VZ];
 			 * 
 			 * cross(dv1, dv2, norm);
 			 */
 
-			cross(vertices[vIndex2][VX] - vertices[vIndex][VX], vertices[vIndex2][VY] - vertices[vIndex][VY], vertices[vIndex2][VZ] - vertices[vIndex][VZ], vertices[vIndex3][VX] - vertices[vIndex][VX], vertices[vIndex3][VY] - vertices[vIndex][VY], vertices[vIndex3][VZ] - vertices[vIndex][VZ], lightTriangleNorm);
+			cross(vertices[vIndex2][VX] - vertices[vIndex][VX],
+					vertices[vIndex2][VY] - vertices[vIndex][VY],
+					vertices[vIndex2][VZ] - vertices[vIndex][VZ],
+					vertices[vIndex3][VX] - vertices[vIndex][VX],
+					vertices[vIndex3][VY] - vertices[vIndex][VY],
+					vertices[vIndex3][VZ] - vertices[vIndex][VZ],
+					lightTriangleNorm);
 
 			lightTriangleNorm.normalize();
 			vertices[vIndex][NX] = lightTriangleNorm.x;
 			vertices[vIndex][NY] = lightTriangleNorm.y;
 			vertices[vIndex][NZ] = lightTriangleNorm.z;
 
-			// The true at the end says the normal is already in world coordinates
+			// The true at the end says the normal is already in world
+			// coordinates
 			calcLightingContribution(vIndex, tempLightingContribution, true);
 			copyVertexColor(triIndex, vIndex, 0, tempLightingContribution);
 			copyVertexColor(triIndex, vIndex2, 1, tempLightingContribution);
@@ -1965,14 +2114,24 @@ public class OldP3D extends PGraphics {
 				int vIndex3 = triangles[triIndex][VERTEX3];
 
 				/*
-				 * dv1[0] = vertices[vIndex2][VX] - vertices[vIndex][VX]; dv1[1] = vertices[vIndex2][VY] - vertices[vIndex][VY]; dv1[2] = vertices[vIndex2][VZ] - vertices[vIndex][VZ];
+				 * dv1[0] = vertices[vIndex2][VX] - vertices[vIndex][VX]; dv1[1]
+				 * = vertices[vIndex2][VY] - vertices[vIndex][VY]; dv1[2] =
+				 * vertices[vIndex2][VZ] - vertices[vIndex][VZ];
 				 * 
-				 * dv2[0] = vertices[vIndex3][VX] - vertices[vIndex][VX]; dv2[1] = vertices[vIndex3][VY] - vertices[vIndex][VY]; dv2[2] = vertices[vIndex3][VZ] - vertices[vIndex][VZ];
+				 * dv2[0] = vertices[vIndex3][VX] - vertices[vIndex][VX]; dv2[1]
+				 * = vertices[vIndex3][VY] - vertices[vIndex][VY]; dv2[2] =
+				 * vertices[vIndex3][VZ] - vertices[vIndex][VZ];
 				 * 
 				 * cross(dv1, dv2, norm);
 				 */
 
-				cross(vertices[vIndex2][VX] - vertices[vIndex][VX], vertices[vIndex2][VY] - vertices[vIndex][VY], vertices[vIndex2][VZ] - vertices[vIndex][VZ], vertices[vIndex3][VX] - vertices[vIndex][VX], vertices[vIndex3][VY] - vertices[vIndex][VY], vertices[vIndex3][VZ] - vertices[vIndex][VZ], lightTriangleNorm);
+				cross(vertices[vIndex2][VX] - vertices[vIndex][VX],
+						vertices[vIndex2][VY] - vertices[vIndex][VY],
+						vertices[vIndex2][VZ] - vertices[vIndex][VZ],
+						vertices[vIndex3][VX] - vertices[vIndex][VX],
+						vertices[vIndex3][VY] - vertices[vIndex][VY],
+						vertices[vIndex3][VZ] - vertices[vIndex][VZ],
+						lightTriangleNorm);
 				// float nmag = mag(norm[X], norm[Y], norm[Z]);
 				// if (nmag != 0 && nmag != 1) {
 				// norm[X] /= nmag; norm[Y] /= nmag; norm[Z] /= nmag;
@@ -1981,22 +2140,27 @@ public class OldP3D extends PGraphics {
 				vertices[vIndex][NX] = lightTriangleNorm.x;
 				vertices[vIndex][NY] = lightTriangleNorm.y;
 				vertices[vIndex][NZ] = lightTriangleNorm.z;
-				// The true at the end says the normal is already in world coordinates
+				// The true at the end says the normal is already in world
+				// coordinates
 				calcLightingContribution(vIndex, tempLightingContribution, true);
 				copyVertexColor(triIndex, vIndex, 0, tempLightingContribution);
 
 				vertices[vIndex2][NX] = lightTriangleNorm.x;
 				vertices[vIndex2][NY] = lightTriangleNorm.y;
 				vertices[vIndex2][NZ] = lightTriangleNorm.z;
-				// The true at the end says the normal is already in world coordinates
-				calcLightingContribution(vIndex2, tempLightingContribution, true);
+				// The true at the end says the normal is already in world
+				// coordinates
+				calcLightingContribution(vIndex2, tempLightingContribution,
+						true);
 				copyVertexColor(triIndex, vIndex2, 1, tempLightingContribution);
 
 				vertices[vIndex3][NX] = lightTriangleNorm.x;
 				vertices[vIndex3][NY] = lightTriangleNorm.y;
 				vertices[vIndex3][NZ] = lightTriangleNorm.z;
-				// The true at the end says the normal is already in world coordinates
-				calcLightingContribution(vIndex3, tempLightingContribution, true);
+				// The true at the end says the normal is already in world
+				// coordinates
+				calcLightingContribution(vIndex3, tempLightingContribution,
+						true);
 				copyVertexColor(triIndex, vIndex3, 2, tempLightingContribution);
 			}
 		}
@@ -2010,22 +2174,40 @@ public class OldP3D extends PGraphics {
 			int tex = triangles[i][TEXTURE_INDEX];
 
 			/*
-			 * // removing for 0149 with the return of P2D // ewjordan: hack to 'fix' accuracy issues when drawing in 2d // see also render_lines() where similar hack is employed float shift = 0.15f;//was 0.49f boolean shifted = false; if (drawing2D() && (a[Z] == 0)) { shifted = true; a[TX] += shift; a[TY] += shift; a[VX] += shift*a[VW]; a[VY] += shift*a[VW]; b[TX] += shift; b[TY] += shift; b[VX] += shift*b[VW]; b[VY] += shift*b[VW]; c[TX] += shift; c[TY] += shift; c[VX] += shift*c[VW]; c[VY] += shift*c[VW]; }
+			 * // removing for 0149 with the return of P2D // ewjordan: hack to
+			 * 'fix' accuracy issues when drawing in 2d // see also
+			 * render_lines() where similar hack is employed float shift =
+			 * 0.15f;//was 0.49f boolean shifted = false; if (drawing2D() &&
+			 * (a[Z] == 0)) { shifted = true; a[TX] += shift; a[TY] += shift;
+			 * a[VX] += shift*a[VW]; a[VY] += shift*a[VW]; b[TX] += shift; b[TY]
+			 * += shift; b[VX] += shift*b[VW]; b[VY] += shift*b[VW]; c[TX] +=
+			 * shift; c[TY] += shift; c[VX] += shift*c[VW]; c[VY] +=
+			 * shift*c[VW]; }
 			 */
 
 			triangle.reset();
 
 			// This is only true when not textured.
-			// We really should pass specular straight through to triangle rendering.
-			float ar = clamp(triangleColors[i][0][TRI_DIFFUSE_R] + triangleColors[i][0][TRI_SPECULAR_R]);
-			float ag = clamp(triangleColors[i][0][TRI_DIFFUSE_G] + triangleColors[i][0][TRI_SPECULAR_G]);
-			float ab = clamp(triangleColors[i][0][TRI_DIFFUSE_B] + triangleColors[i][0][TRI_SPECULAR_B]);
-			float br = clamp(triangleColors[i][1][TRI_DIFFUSE_R] + triangleColors[i][1][TRI_SPECULAR_R]);
-			float bg = clamp(triangleColors[i][1][TRI_DIFFUSE_G] + triangleColors[i][1][TRI_SPECULAR_G]);
-			float bb = clamp(triangleColors[i][1][TRI_DIFFUSE_B] + triangleColors[i][1][TRI_SPECULAR_B]);
-			float cr = clamp(triangleColors[i][2][TRI_DIFFUSE_R] + triangleColors[i][2][TRI_SPECULAR_R]);
-			float cg = clamp(triangleColors[i][2][TRI_DIFFUSE_G] + triangleColors[i][2][TRI_SPECULAR_G]);
-			float cb = clamp(triangleColors[i][2][TRI_DIFFUSE_B] + triangleColors[i][2][TRI_SPECULAR_B]);
+			// We really should pass specular straight through to triangle
+			// rendering.
+			float ar = clamp(triangleColors[i][0][TRI_DIFFUSE_R]
+					+ triangleColors[i][0][TRI_SPECULAR_R]);
+			float ag = clamp(triangleColors[i][0][TRI_DIFFUSE_G]
+					+ triangleColors[i][0][TRI_SPECULAR_G]);
+			float ab = clamp(triangleColors[i][0][TRI_DIFFUSE_B]
+					+ triangleColors[i][0][TRI_SPECULAR_B]);
+			float br = clamp(triangleColors[i][1][TRI_DIFFUSE_R]
+					+ triangleColors[i][1][TRI_SPECULAR_R]);
+			float bg = clamp(triangleColors[i][1][TRI_DIFFUSE_G]
+					+ triangleColors[i][1][TRI_SPECULAR_G]);
+			float bb = clamp(triangleColors[i][1][TRI_DIFFUSE_B]
+					+ triangleColors[i][1][TRI_SPECULAR_B]);
+			float cr = clamp(triangleColors[i][2][TRI_DIFFUSE_R]
+					+ triangleColors[i][2][TRI_SPECULAR_R]);
+			float cg = clamp(triangleColors[i][2][TRI_DIFFUSE_G]
+					+ triangleColors[i][2][TRI_SPECULAR_G]);
+			float cb = clamp(triangleColors[i][2][TRI_DIFFUSE_B]
+					+ triangleColors[i][2][TRI_SPECULAR_B]);
 
 			// ACCURATE TEXTURE CODE
 			boolean failedToPrecalc = false;
@@ -2034,12 +2216,16 @@ public class OldP3D extends PGraphics {
 				smoothTriangle.reset(3);
 				smoothTriangle.smooth = true;
 				smoothTriangle.interpARGB = true;
-				smoothTriangle.setIntensities(ar, ag, ab, a[A], br, bg, bb, b[A], cr, cg, cb, c[A]);
+				smoothTriangle.setIntensities(ar, ag, ab, a[A], br, bg, bb,
+						b[A], cr, cg, cb, c[A]);
 				if (tex > -1 && textures[tex] != null) {
-					smoothTriangle.setCamVertices(a[VX], a[VY], a[VZ], b[VX], b[VY], b[VZ], c[VX], c[VY], c[VZ]);
+					smoothTriangle.setCamVertices(a[VX], a[VY], a[VZ], b[VX],
+							b[VY], b[VZ], c[VX], c[VY], c[VZ]);
 					smoothTriangle.interpUV = true;
 					smoothTriangle.texture(textures[tex]);
-					float umult = textures[tex].width; // apparently no check for textureMode is needed here
+					float umult = textures[tex].width; // apparently no check
+														// for textureMode is
+														// needed here
 					float vmult = textures[tex].height;
 					smoothTriangle.vertices[0][U] = a[U] * umult;
 					smoothTriangle.vertices[0][V] = a[V] * vmult;
@@ -2052,7 +2238,8 @@ public class OldP3D extends PGraphics {
 					textured = false;
 				}
 
-				smoothTriangle.setVertices(a[TX], a[TY], a[TZ], b[TX], b[TY], b[TZ], c[TX], c[TY], c[TZ]);
+				smoothTriangle.setVertices(a[TX], a[TY], a[TZ], b[TX], b[TY],
+						b[TZ], c[TX], c[TY], c[TZ]);
 
 				if (!textured || smoothTriangle.precomputeAccurateTexturing()) {
 					smoothTriangle.render();
@@ -2068,21 +2255,28 @@ public class OldP3D extends PGraphics {
 			// Note: this is not an end-if from the smoothed texturing mode
 			// because it's possible that the precalculation will fail and we
 			// need to fall back on normal rendering.
-			if (!s_enableAccurateTextures || failedToPrecalc || (frustumMode == false)) {
+			if (!s_enableAccurateTextures || failedToPrecalc
+					|| (frustumMode == false)) {
 				if (tex > -1 && textures[tex] != null) {
 					triangle.setTexture(textures[tex]);
 					triangle.setUV(a[U], a[V], b[U], b[V], c[U], c[V]);
 				}
 
-				triangle.setIntensities(ar, ag, ab, a[A], br, bg, bb, b[A], cr, cg, cb, c[A]);
+				triangle.setIntensities(ar, ag, ab, a[A], br, bg, bb, b[A], cr,
+						cg, cb, c[A]);
 
-				triangle.setVertices(a[TX], a[TY], a[TZ], b[TX], b[TY], b[TZ], c[TX], c[TY], c[TZ]);
+				triangle.setVertices(a[TX], a[TY], a[TZ], b[TX], b[TY], b[TZ],
+						c[TX], c[TY], c[TZ]);
 
 				triangle.render();
 			}
 
 			/*
-			 * // removing for 0149 with the return of P2D if (drawing2D() && shifted){ a[TX] -= shift; a[TY] -= shift; a[VX] -= shift*a[VW]; a[VY] -= shift*a[VW]; b[TX] -= shift; b[TY] -= shift; b[VX] -= shift*b[VW]; b[VY] -= shift*b[VW]; c[TX] -= shift; c[TY] -= shift; c[VX] -= shift*c[VW]; c[VY] -= shift*c[VW]; }
+			 * // removing for 0149 with the return of P2D if (drawing2D() &&
+			 * shifted){ a[TX] -= shift; a[TY] -= shift; a[VX] -= shift*a[VW];
+			 * a[VY] -= shift*a[VW]; b[TX] -= shift; b[TY] -= shift; b[VX] -=
+			 * shift*b[VW]; b[VY] -= shift*b[VW]; c[TX] -= shift; c[TY] -=
+			 * shift; c[VX] -= shift*c[VW]; c[VY] -= shift*c[VW]; }
 			 */
 		}
 	}
@@ -2097,15 +2291,24 @@ public class OldP3D extends PGraphics {
 			float b[] = vertices[triangles[i][VERTEX2]];
 			float c[] = vertices[triangles[i][VERTEX3]];
 
-			float ar = clamp(triangleColors[i][0][TRI_DIFFUSE_R] + triangleColors[i][0][TRI_SPECULAR_R]);
-			float ag = clamp(triangleColors[i][0][TRI_DIFFUSE_G] + triangleColors[i][0][TRI_SPECULAR_G]);
-			float ab = clamp(triangleColors[i][0][TRI_DIFFUSE_B] + triangleColors[i][0][TRI_SPECULAR_B]);
-			float br = clamp(triangleColors[i][1][TRI_DIFFUSE_R] + triangleColors[i][1][TRI_SPECULAR_R]);
-			float bg = clamp(triangleColors[i][1][TRI_DIFFUSE_G] + triangleColors[i][1][TRI_SPECULAR_G]);
-			float bb = clamp(triangleColors[i][1][TRI_DIFFUSE_B] + triangleColors[i][1][TRI_SPECULAR_B]);
-			float cr = clamp(triangleColors[i][2][TRI_DIFFUSE_R] + triangleColors[i][2][TRI_SPECULAR_R]);
-			float cg = clamp(triangleColors[i][2][TRI_DIFFUSE_G] + triangleColors[i][2][TRI_SPECULAR_G]);
-			float cb = clamp(triangleColors[i][2][TRI_DIFFUSE_B] + triangleColors[i][2][TRI_SPECULAR_B]);
+			float ar = clamp(triangleColors[i][0][TRI_DIFFUSE_R]
+					+ triangleColors[i][0][TRI_SPECULAR_R]);
+			float ag = clamp(triangleColors[i][0][TRI_DIFFUSE_G]
+					+ triangleColors[i][0][TRI_SPECULAR_G]);
+			float ab = clamp(triangleColors[i][0][TRI_DIFFUSE_B]
+					+ triangleColors[i][0][TRI_SPECULAR_B]);
+			float br = clamp(triangleColors[i][1][TRI_DIFFUSE_R]
+					+ triangleColors[i][1][TRI_SPECULAR_R]);
+			float bg = clamp(triangleColors[i][1][TRI_DIFFUSE_G]
+					+ triangleColors[i][1][TRI_SPECULAR_G]);
+			float bb = clamp(triangleColors[i][1][TRI_DIFFUSE_B]
+					+ triangleColors[i][1][TRI_SPECULAR_B]);
+			float cr = clamp(triangleColors[i][2][TRI_DIFFUSE_R]
+					+ triangleColors[i][2][TRI_SPECULAR_R]);
+			float cg = clamp(triangleColors[i][2][TRI_DIFFUSE_G]
+					+ triangleColors[i][2][TRI_SPECULAR_G]);
+			float cb = clamp(triangleColors[i][2][TRI_DIFFUSE_B]
+					+ triangleColors[i][2][TRI_SPECULAR_B]);
 
 			int tex = triangles[i][TEXTURE_INDEX];
 			PImage texImage = (tex > -1) ? textures[tex] : null;
@@ -2113,11 +2316,14 @@ public class OldP3D extends PGraphics {
 				if (raw.is3D()) {
 					if ((a[VW] != 0) && (b[VW] != 0) && (c[VW] != 0)) {
 						raw.fill(ar, ag, ab, a[A]);
-						raw.vertex(a[VX] / a[VW], a[VY] / a[VW], a[VZ] / a[VW], a[U], a[V]);
+						raw.vertex(a[VX] / a[VW], a[VY] / a[VW], a[VZ] / a[VW],
+								a[U], a[V]);
 						raw.fill(br, bg, bb, b[A]);
-						raw.vertex(b[VX] / b[VW], b[VY] / b[VW], b[VZ] / b[VW], b[U], b[V]);
+						raw.vertex(b[VX] / b[VW], b[VY] / b[VW], b[VZ] / b[VW],
+								b[U], b[V]);
 						raw.fill(cr, cg, cb, c[A]);
-						raw.vertex(c[VX] / c[VW], c[VY] / c[VW], c[VZ] / c[VW], c[U], c[V]);
+						raw.vertex(c[VX] / c[VW], c[VY] / c[VW], c[VZ] / c[VW],
+								c[U], c[V]);
 					}
 				} else if (raw.is2D()) {
 					raw.fill(ar, ag, ab, a[A]);
@@ -2180,7 +2386,12 @@ public class OldP3D extends PGraphics {
 		render();
 
 		/*
-		 * if (triangleCount > 0) { if (hints[ENABLE_DEPTH_SORT]) { sortTriangles(); } renderTriangles(); } if (lineCount > 0) { if (hints[ENABLE_DEPTH_SORT]) { sortLines(); } renderLines(); } // Clear this out in case flush() is called again. // For instance, with hint(ENABLE_DEPTH_SORT), it will be called // once on endRaw(), and once again at endDraw(). triangleCount = 0; lineCount = 0;
+		 * if (triangleCount > 0) { if (hints[ENABLE_DEPTH_SORT]) {
+		 * sortTriangles(); } renderTriangles(); } if (lineCount > 0) { if
+		 * (hints[ENABLE_DEPTH_SORT]) { sortLines(); } renderLines(); } // Clear
+		 * this out in case flush() is called again. // For instance, with
+		 * hint(ENABLE_DEPTH_SORT), it will be called // once on endRaw(), and
+		 * once again at endDraw(). triangleCount = 0; lineCount = 0;
 		 */
 	}
 
@@ -2210,7 +2421,9 @@ public class OldP3D extends PGraphics {
 	}
 
 	/**
-	 * Handle depth sorting of geometry. Currently this only handles triangles, however in the future it will be expanded for points and lines, which will also need to be interspersed with one another while rendering.
+	 * Handle depth sorting of geometry. Currently this only handles triangles,
+	 * however in the future it will be expanded for points and lines, which
+	 * will also need to be interspersed with one another while rendering.
 	 */
 	protected void sort() {
 		if (triangleCount > 0) {
@@ -2253,9 +2466,17 @@ public class OldP3D extends PGraphics {
 
 	private float sortTrianglesCompare(int a, int b) {
 		/*
-		 * if (Float.isNaN(vertices[triangles[a][VERTEX1]][TZ]) || Float.isNaN(vertices[triangles[a][VERTEX2]][TZ]) || Float.isNaN(vertices[triangles[a][VERTEX3]][TZ]) || Float.isNaN(vertices[triangles[b][VERTEX1]][TZ]) || Float.isNaN(vertices[triangles[b][VERTEX2]][TZ]) || Float.isNaN(vertices[triangles[b][VERTEX3]][TZ])) { System.err.println("NaN values in triangle"); }
+		 * if (Float.isNaN(vertices[triangles[a][VERTEX1]][TZ]) ||
+		 * Float.isNaN(vertices[triangles[a][VERTEX2]][TZ]) ||
+		 * Float.isNaN(vertices[triangles[a][VERTEX3]][TZ]) ||
+		 * Float.isNaN(vertices[triangles[b][VERTEX1]][TZ]) ||
+		 * Float.isNaN(vertices[triangles[b][VERTEX2]][TZ]) ||
+		 * Float.isNaN(vertices[triangles[b][VERTEX3]][TZ])) {
+		 * System.err.println("NaN values in triangle"); }
 		 */
-		return ((vertices[triangles[b][VERTEX1]][TZ] + vertices[triangles[b][VERTEX2]][TZ] + vertices[triangles[b][VERTEX3]][TZ]) - (vertices[triangles[a][VERTEX1]][TZ] + vertices[triangles[a][VERTEX2]][TZ] + vertices[triangles[a][VERTEX3]][TZ]));
+		return ((vertices[triangles[b][VERTEX1]][TZ]
+				+ vertices[triangles[b][VERTEX2]][TZ] + vertices[triangles[b][VERTEX3]][TZ]) - (vertices[triangles[a][VERTEX1]][TZ]
+				+ vertices[triangles[a][VERTEX2]][TZ] + vertices[triangles[a][VERTEX3]][TZ]));
 	}
 
 	// ////////////////////////////////////////////////////////////
@@ -2318,7 +2539,8 @@ public class OldP3D extends PGraphics {
 		if (fill) {
 			// returning to pre-1.0 version of algorithm because of problems
 			// int rough = (int)(4+Math.sqrt(w+h)*3);
-			// int rough = (int) (TWO_PI * PApplet.dist(sx1, sy1, sx2, sy2) / 20);
+			// int rough = (int) (TWO_PI * PApplet.dist(sx1, sy1, sx2, sy2) /
+			// 20);
 			// int accuracy = PApplet.constrain(rough, 6, 100);
 
 			float inc = (float) SINCOS_LENGTH / accuracy;
@@ -2335,7 +2557,8 @@ public class OldP3D extends PGraphics {
 			normal(0, 0, 1);
 			vertex(centerX, centerY);
 			for (int i = 0; i < accuracy; i++) {
-				vertex(centerX + cosLUT[(int) val] * radiusH, centerY + sinLUT[(int) val] * radiusV);
+				vertex(centerX + cosLUT[(int) val] * radiusH, centerY
+						+ sinLUT[(int) val] * radiusV);
 				val = (val + inc) % SINCOS_LENGTH;
 			}
 			// back to the beginning
@@ -2347,7 +2570,8 @@ public class OldP3D extends PGraphics {
 		}
 
 		if (stroke) {
-			// int rough = (int) (TWO_PI * PApplet.dist(sx1, sy1, sx2, sy2) / 8);
+			// int rough = (int) (TWO_PI * PApplet.dist(sx1, sy1, sx2, sy2) /
+			// 8);
 			// int accuracy = PApplet.constrain(rough, 6, 100);
 
 			float inc = (float) SINCOS_LENGTH / accuracy;
@@ -2359,7 +2583,8 @@ public class OldP3D extends PGraphics {
 			val = 0;
 			beginShape();
 			for (int i = 0; i < accuracy; i++) {
-				vertex(centerX + cosLUT[(int) val] * radiusH, centerY + sinLUT[(int) val] * radiusV);
+				vertex(centerX + cosLUT[(int) val] * radiusH, centerY
+						+ sinLUT[(int) val] * radiusV);
 				val = (val + inc) % SINCOS_LENGTH;
 			}
 			endShape(CLOSE);
@@ -2372,7 +2597,8 @@ public class OldP3D extends PGraphics {
 	// float start, float stop)
 
 	@Override
-	protected void arcImpl(float x, float y, float w, float h, float start, float stop) {
+	protected void arcImpl(float x, float y, float w, float h, float start,
+			float stop) {
 		float hr = w / 2f;
 		float vr = h / 2f;
 
@@ -2398,7 +2624,8 @@ public class OldP3D extends PGraphics {
 				vertex(centerX + cosLUT[ii] * hr, centerY + sinLUT[ii] * vr);
 			}
 			// draw last point explicitly for accuracy
-			vertex(centerX + cosLUT[stopLUT % SINCOS_LENGTH] * hr, centerY + sinLUT[stopLUT % SINCOS_LENGTH] * vr);
+			vertex(centerX + cosLUT[stopLUT % SINCOS_LENGTH] * hr, centerY
+					+ sinLUT[stopLUT % SINCOS_LENGTH] * vr);
 			endShape();
 
 			stroke = savedStroke;
@@ -2423,7 +2650,8 @@ public class OldP3D extends PGraphics {
 				vertex(centerX + cosLUT[ii] * hr, centerY + sinLUT[ii] * vr);
 			}
 			// draw last point explicitly for accuracy
-			vertex(centerX + cosLUT[stopLUT % SINCOS_LENGTH] * hr, centerY + sinLUT[stopLUT % SINCOS_LENGTH] * vr);
+			vertex(centerX + cosLUT[stopLUT % SINCOS_LENGTH] * hr, centerY
+					+ sinLUT[stopLUT % SINCOS_LENGTH] * vr);
 			endShape();
 
 			fill = savedFill;
@@ -2623,7 +2851,10 @@ public class OldP3D extends PGraphics {
 	}
 
 	/**
-	 * Two dimensional rotation. Same as rotateZ (this is identical to a 3D rotation along the z-axis) but included for clarity -- it'd be weird for people drawing 2D graphics to be using rotateZ. And they might kick our a-- for the confusion.
+	 * Two dimensional rotation. Same as rotateZ (this is identical to a 3D
+	 * rotation along the z-axis) but included for clarity -- it'd be weird for
+	 * people drawing 2D graphics to be using rotateZ. And they might kick our
+	 * a-- for the confusion.
 	 */
 	@Override
 	public void rotate(float angle) {
@@ -2649,7 +2880,8 @@ public class OldP3D extends PGraphics {
 	}
 
 	/**
-	 * Rotate around an arbitrary vector, similar to glRotate(), except that it takes radians (instead of degrees).
+	 * Rotate around an arbitrary vector, similar to glRotate(), except that it
+	 * takes radians (instead of degrees).
 	 */
 	@Override
 	public void rotate(float angle, float v0, float v1, float v2) {
@@ -2693,27 +2925,38 @@ public class OldP3D extends PGraphics {
 	}
 
 	public void applyMatrix(PMatrix2D source) {
-		applyMatrix(source.m00, source.m01, source.m02, source.m10, source.m11, source.m12);
+		applyMatrix(source.m00, source.m01, source.m02, source.m10, source.m11,
+				source.m12);
 	}
 
 	@Override
-	public void applyMatrix(float n00, float n01, float n02, float n10, float n11, float n12) {
+	public void applyMatrix(float n00, float n01, float n02, float n10,
+			float n11, float n12) {
 		applyMatrix(n00, n01, n02, 0, n10, n11, n12, 0, 0, 0, 1, 0, 0, 0, 0, 1);
 	}
 
 	public void applyMatrix(PMatrix3D source) {
-		applyMatrix(source.m00, source.m01, source.m02, source.m03, source.m10, source.m11, source.m12, source.m13, source.m20, source.m21, source.m22, source.m23, source.m30, source.m31, source.m32, source.m33);
+		applyMatrix(source.m00, source.m01, source.m02, source.m03, source.m10,
+				source.m11, source.m12, source.m13, source.m20, source.m21,
+				source.m22, source.m23, source.m30, source.m31, source.m32,
+				source.m33);
 	}
 
 	/**
-	 * Apply a 4x4 transformation matrix. Same as glMultMatrix(). This call will be slow because it will try to calculate the inverse of the transform. So avoid it whenever possible.
+	 * Apply a 4x4 transformation matrix. Same as glMultMatrix(). This call will
+	 * be slow because it will try to calculate the inverse of the transform. So
+	 * avoid it whenever possible.
 	 */
 	@Override
-	public void applyMatrix(float n00, float n01, float n02, float n03, float n10, float n11, float n12, float n13, float n20, float n21, float n22, float n23, float n30, float n31, float n32, float n33) {
+	public void applyMatrix(float n00, float n01, float n02, float n03,
+			float n10, float n11, float n12, float n13, float n20, float n21,
+			float n22, float n23, float n30, float n31, float n32, float n33) {
 
-		forwardTransform.apply(n00, n01, n02, n03, n10, n11, n12, n13, n20, n21, n22, n23, n30, n31, n32, n33);
+		forwardTransform.apply(n00, n01, n02, n03, n10, n11, n12, n13, n20,
+				n21, n22, n23, n30, n31, n32, n33);
 
-		reverseTransform.invApply(n00, n01, n02, n03, n10, n11, n12, n13, n20, n21, n22, n23, n30, n31, n32, n33);
+		reverseTransform.invApply(n00, n01, n02, n03, n10, n11, n12, n13, n20,
+				n21, n22, n23, n30, n31, n32, n33);
 	}
 
 	// ////////////////////////////////////////////////////////////
@@ -2761,12 +3004,27 @@ public class OldP3D extends PGraphics {
 	}
 
 	/*
-	 * This function checks if the modelview matrix is set up to likely be drawing in 2D. It merely checks if the non-translational piece of the matrix is unity. If this is to be used, it should be coupled with a check that the raw vertex coordinates lie in the z=0 plane. Mainly useful for applying sub-pixel shifts to avoid 2d artifacts in the screen plane. Added by ewjordan 6/13/07
+	 * This function checks if the modelview matrix is set up to likely be
+	 * drawing in 2D. It merely checks if the non-translational piece of the
+	 * matrix is unity. If this is to be used, it should be coupled with a check
+	 * that the raw vertex coordinates lie in the z=0 plane. Mainly useful for
+	 * applying sub-pixel shifts to avoid 2d artifacts in the screen plane.
+	 * Added by ewjordan 6/13/07
 	 * 
-	 * TODO need to invert the logic here so that we can simply return the value, rather than calculating true/false and returning it.
+	 * TODO need to invert the logic here so that we can simply return the
+	 * value, rather than calculating true/false and returning it.
 	 */
 	/*
-	 * private boolean drawing2D() { if (modelview.m00 != 1.0f || modelview.m11 != 1.0f || modelview.m22 != 1.0f || // check scale modelview.m01 != 0.0f || modelview.m02 != 0.0f || // check rotational pieces modelview.m10 != 0.0f || modelview.m12 != 0.0f || modelview.m20 != 0.0f || modelview.m21 != 0.0f || !((camera.m23-modelview.m23) <= EPSILON && (camera.m23-modelview.m23) >= -EPSILON)) { // check for z-translation // Something about the modelview matrix indicates 3d drawing // (or rotated 2d, in which case 2d subpixel fixes probably aren't needed) return false; } else { //The matrix is mapping z=0 vertices to the screen plane, // which means it's likely that 2D drawing is happening. return true; } }
+	 * private boolean drawing2D() { if (modelview.m00 != 1.0f || modelview.m11
+	 * != 1.0f || modelview.m22 != 1.0f || // check scale modelview.m01 != 0.0f
+	 * || modelview.m02 != 0.0f || // check rotational pieces modelview.m10 !=
+	 * 0.0f || modelview.m12 != 0.0f || modelview.m20 != 0.0f || modelview.m21
+	 * != 0.0f || !((camera.m23-modelview.m23) <= EPSILON &&
+	 * (camera.m23-modelview.m23) >= -EPSILON)) { // check for z-translation //
+	 * Something about the modelview matrix indicates 3d drawing // (or rotated
+	 * 2d, in which case 2d subpixel fixes probably aren't needed) return false;
+	 * } else { //The matrix is mapping z=0 vertices to the screen plane, //
+	 * which means it's likely that 2D drawing is happening. return true; } }
 	 */
 
 	// ////////////////////////////////////////////////////////////
@@ -2774,13 +3032,27 @@ public class OldP3D extends PGraphics {
 	// CAMERA
 
 	/**
-	 * Set matrix mode to the camera matrix (instead of the current transformation matrix). This means applyMatrix, resetMatrix, etc. will affect the camera.
+	 * Set matrix mode to the camera matrix (instead of the current
+	 * transformation matrix). This means applyMatrix, resetMatrix, etc. will
+	 * affect the camera.
 	 * <P>
-	 * Note that the camera matrix is *not* the perspective matrix, it is in front of the modelview matrix (hence the name "model" and "view" for that matrix).
+	 * Note that the camera matrix is *not* the perspective matrix, it is in
+	 * front of the modelview matrix (hence the name "model" and "view" for that
+	 * matrix).
 	 * <P>
-	 * beginCamera() specifies that all coordinate transforms until endCamera() should be pre-applied in inverse to the camera transform matrix. Note that this is only challenging when a user specifies an arbitrary matrix with applyMatrix(). Then that matrix will need to be inverted, which may not be possible. But take heart, if a user is applying a non-invertible matrix to the camera transform, then he is clearly up to no good, and we can wash our hands of those bad intentions.
+	 * beginCamera() specifies that all coordinate transforms until endCamera()
+	 * should be pre-applied in inverse to the camera transform matrix. Note
+	 * that this is only challenging when a user specifies an arbitrary matrix
+	 * with applyMatrix(). Then that matrix will need to be inverted, which may
+	 * not be possible. But take heart, if a user is applying a non-invertible
+	 * matrix to the camera transform, then he is clearly up to no good, and we
+	 * can wash our hands of those bad intentions.
 	 * <P>
-	 * begin/endCamera clauses do not automatically reset the camera transform matrix. That's because we set up a nice default camera transform int setup(), and we expect it to hold through draw(). So we don't reset the camera transform matrix at the top of draw(). That means that an innocuous-looking clause like
+	 * begin/endCamera clauses do not automatically reset the camera transform
+	 * matrix. That's because we set up a nice default camera transform int
+	 * setup(), and we expect it to hold through draw(). So we don't reset the
+	 * camera transform matrix at the top of draw(). That means that an
+	 * innocuous-looking clause like
 	 * 
 	 * <PRE>
 	 * beginCamera();
@@ -2788,7 +3060,10 @@ public class OldP3D extends PGraphics {
 	 * endCamera();
 	 * </PRE>
 	 * 
-	 * at the top of draw(), will result in a runaway camera that shoots infinitely out of the screen over time. In order to prevent this, it is necessary to call some function that does a hard reset of the camera transform matrix inside of begin/endCamera. Two options are
+	 * at the top of draw(), will result in a runaway camera that shoots
+	 * infinitely out of the screen over time. In order to prevent this, it is
+	 * necessary to call some function that does a hard reset of the camera
+	 * transform matrix inside of begin/endCamera. Two options are
 	 * 
 	 * <PRE>
 	 * camera(); // sets up the nice default camera transform
@@ -2807,7 +3082,8 @@ public class OldP3D extends PGraphics {
 	@Override
 	public void beginCamera() {
 		if (manipulatingCamera) {
-			throw new RuntimeException("beginCamera() cannot be called again " + "before endCamera()");
+			throw new RuntimeException("beginCamera() cannot be called again "
+					+ "before endCamera()");
 		} else {
 			manipulatingCamera = true;
 			forwardTransform = cameraInv;
@@ -2816,14 +3092,18 @@ public class OldP3D extends PGraphics {
 	}
 
 	/**
-	 * Record the current settings into the camera matrix, and set the matrix mode back to the current transformation matrix.
+	 * Record the current settings into the camera matrix, and set the matrix
+	 * mode back to the current transformation matrix.
 	 * <P>
-	 * Note that this will destroy any settings to scale(), translate(), or whatever, because the final camera matrix will be copied (not multiplied) into the modelview.
+	 * Note that this will destroy any settings to scale(), translate(), or
+	 * whatever, because the final camera matrix will be copied (not multiplied)
+	 * into the modelview.
 	 */
 	@Override
 	public void endCamera() {
 		if (!manipulatingCamera) {
-			throw new RuntimeException("Cannot call endCamera() " + "without first calling beginCamera()");
+			throw new RuntimeException("Cannot call endCamera() "
+					+ "without first calling beginCamera()");
 		}
 		// reset the modelview to use this new camera matrix
 		modelview.set(camera);
@@ -2842,17 +3122,53 @@ public class OldP3D extends PGraphics {
 	 * <P>
 	 * Processing camera behavior:
 	 * <P>
-	 * Camera behavior can be split into two separate components, camera transformation, and projection. The transformation corresponds to the physical location, orientation, and scale of the camera. In a physical camera metaphor, this is what can manipulated by handling the camera body (with the exception of scale, which doesn't really have a physcial analog). The projection corresponds to what can be changed by manipulating the lens.
+	 * Camera behavior can be split into two separate components, camera
+	 * transformation, and projection. The transformation corresponds to the
+	 * physical location, orientation, and scale of the camera. In a physical
+	 * camera metaphor, this is what can manipulated by handling the camera body
+	 * (with the exception of scale, which doesn't really have a physcial
+	 * analog). The projection corresponds to what can be changed by
+	 * manipulating the lens.
 	 * <P>
-	 * We maintain separate matrices to represent the camera transform and projection. An important distinction between the two is that the camera transform should be invertible, where the projection matrix should not, since it serves to map three dimensions to two. It is possible to bake the two matrices into a single one just by multiplying them together, but it isn't a good idea, since lighting, z-ordering, and z-buffering all demand a true camera z coordinate after modelview and camera transforms have been applied but before projection. If the camera transform and projection are combined there is no way to recover a good camera-space z-coordinate from a model coordinate.
+	 * We maintain separate matrices to represent the camera transform and
+	 * projection. An important distinction between the two is that the camera
+	 * transform should be invertible, where the projection matrix should not,
+	 * since it serves to map three dimensions to two. It is possible to bake
+	 * the two matrices into a single one just by multiplying them together, but
+	 * it isn't a good idea, since lighting, z-ordering, and z-buffering all
+	 * demand a true camera z coordinate after modelview and camera transforms
+	 * have been applied but before projection. If the camera transform and
+	 * projection are combined there is no way to recover a good camera-space
+	 * z-coordinate from a model coordinate.
 	 * <P>
-	 * Fortunately, there are no functions that manipulate both camera transformation and projection.
+	 * Fortunately, there are no functions that manipulate both camera
+	 * transformation and projection.
 	 * <P>
-	 * camera() sets the camera position, orientation, and center of the scene. It replaces the camera transform with a new one. This is different from gluLookAt(), but I think the only reason that GLU's lookat doesn't fully replace the camera matrix with the new one, but instead multiplies it, is that GL doesn't enforce the separation of camera transform and projection, so it wouldn't be safe (you'd probably stomp your projection).
+	 * camera() sets the camera position, orientation, and center of the scene.
+	 * It replaces the camera transform with a new one. This is different from
+	 * gluLookAt(), but I think the only reason that GLU's lookat doesn't fully
+	 * replace the camera matrix with the new one, but instead multiplies it, is
+	 * that GL doesn't enforce the separation of camera transform and
+	 * projection, so it wouldn't be safe (you'd probably stomp your
+	 * projection).
 	 * <P>
-	 * The transformation functions are the same ones used to manipulate the modelview matrix (scale, translate, rotate, etc.). But they are bracketed with beginCamera(), endCamera() to indicate that they should apply (in inverse), to the camera transformation matrix.
+	 * The transformation functions are the same ones used to manipulate the
+	 * modelview matrix (scale, translate, rotate, etc.). But they are bracketed
+	 * with beginCamera(), endCamera() to indicate that they should apply (in
+	 * inverse), to the camera transformation matrix.
 	 * <P>
-	 * This differs considerably from camera transformation in OpenGL. OpenGL only lets you say, apply everything from here out to the projection or modelview matrix. This makes it very hard to treat camera manipulation as if it were a physical camera. Imagine that you want to move your camera 100 units forward. In OpenGL, you need to apply the inverse of that transformation or else you'll move your scene 100 units forward--whether or not you've specified modelview or projection matrix. Remember they're just multiplied by model coods one after another. So in order to treat a camera like a physical camera, it is necessary to pre-apply inverse transforms to a matrix that will be applied to model coordinates. OpenGL provides nothing of this sort, but Processing does! This is the camera transform matrix.
+	 * This differs considerably from camera transformation in OpenGL. OpenGL
+	 * only lets you say, apply everything from here out to the projection or
+	 * modelview matrix. This makes it very hard to treat camera manipulation as
+	 * if it were a physical camera. Imagine that you want to move your camera
+	 * 100 units forward. In OpenGL, you need to apply the inverse of that
+	 * transformation or else you'll move your scene 100 units forward--whether
+	 * or not you've specified modelview or projection matrix. Remember they're
+	 * just multiplied by model coods one after another. So in order to treat a
+	 * camera like a physical camera, it is necessary to pre-apply inverse
+	 * transforms to a matrix that will be applied to model coordinates. OpenGL
+	 * provides nothing of this sort, but Processing does! This is the camera
+	 * transform matrix.
 	 */
 	@Override
 	public void camera() {
@@ -2862,16 +3178,28 @@ public class OldP3D extends PGraphics {
 	/**
 	 * More flexible method for dealing with camera().
 	 * <P>
-	 * The actual call is like gluLookat. Here's the real skinny on what does what:
+	 * The actual call is like gluLookat. Here's the real skinny on what does
+	 * what:
 	 * 
 	 * <PRE>
 	 * camera(); or
 	 * camera(ex, ey, ez, cx, cy, cz, ux, uy, uz);
 	 * </PRE>
 	 * 
-	 * do not need to be called from with beginCamera();/endCamera(); That's because they always apply to the camera transformation, and they always totally replace it. That means that any coordinate transforms done before camera(); in draw() will be wiped out. It also means that camera() always operates in untransformed world coordinates. Therefore it is always redundant to call resetMatrix(); before camera(); This isn't technically true of gluLookat, but it's pretty much how it's used.
+	 * do not need to be called from with beginCamera();/endCamera(); That's
+	 * because they always apply to the camera transformation, and they always
+	 * totally replace it. That means that any coordinate transforms done before
+	 * camera(); in draw() will be wiped out. It also means that camera() always
+	 * operates in untransformed world coordinates. Therefore it is always
+	 * redundant to call resetMatrix(); before camera(); This isn't technically
+	 * true of gluLookat, but it's pretty much how it's used.
 	 * <P>
-	 * Now, beginCamera(); and endCamera(); are useful if you want to move the camera around using transforms like translate(), etc. They will wipe out any coordinate system transforms that occur before them in draw(), but they will not automatically wipe out the camera transform. This means that they should be at the top of draw(). It also means that the following:
+	 * Now, beginCamera(); and endCamera(); are useful if you want to move the
+	 * camera around using transforms like translate(), etc. They will wipe out
+	 * any coordinate system transforms that occur before them in draw(), but
+	 * they will not automatically wipe out the camera transform. This means
+	 * that they should be at the top of draw(). It also means that the
+	 * following:
 	 * 
 	 * <PRE>
 	 * beginCamera();
@@ -2879,7 +3207,8 @@ public class OldP3D extends PGraphics {
 	 * endCamera();
 	 * </PRE>
 	 * 
-	 * will result in a camera that spins without stopping. If you want to just rotate a small constant amount, try this:
+	 * will result in a camera that spins without stopping. If you want to just
+	 * rotate a small constant amount, try this:
 	 * 
 	 * <PRE>
 	 * beginCamera();
@@ -2888,7 +3217,8 @@ public class OldP3D extends PGraphics {
 	 * endCamera();
 	 * </PRE>
 	 * 
-	 * That will rotate a little off of the default view. Note that this is entirely equivalent to
+	 * That will rotate a little off of the default view. Note that this is
+	 * entirely equivalent to
 	 * 
 	 * <PRE>
 	 * camera(); // sets up the default view
@@ -2897,10 +3227,14 @@ public class OldP3D extends PGraphics {
 	 * endCamera();
 	 * </PRE>
 	 * 
-	 * because camera() doesn't care whether or not it's inside a begin/end clause. Basically it's safe to use camera() or camera(ex, ey, ez, cx, cy, cz, ux, uy, uz) as naked calls because they do all the matrix resetting automatically.
+	 * because camera() doesn't care whether or not it's inside a begin/end
+	 * clause. Basically it's safe to use camera() or camera(ex, ey, ez, cx, cy,
+	 * cz, ux, uy, uz) as naked calls because they do all the matrix resetting
+	 * automatically.
 	 */
 	@Override
-	public void camera(float eyeX, float eyeY, float eyeZ, float centerX, float centerY, float centerZ, float upX, float upY, float upZ) {
+	public void camera(float eyeX, float eyeY, float eyeZ, float centerX,
+			float centerY, float centerZ, float upX, float upY, float upZ) {
 		float z0 = eyeX - centerX;
 		float z1 = eyeY - centerY;
 		float z2 = eyeZ - centerZ;
@@ -2944,7 +3278,8 @@ public class OldP3D extends PGraphics {
 		camera.translate(-eyeX, -eyeY, -eyeZ);
 
 		cameraInv.reset();
-		cameraInv.invApply(x0, x1, x2, 0, y0, y1, y2, 0, z0, z1, z2, 0, 0, 0, 0, 1);
+		cameraInv.invApply(x0, x1, x2, 0, y0, y1, y2, 0, z0, z1, z2, 0, 0, 0,
+				0, 1);
 		cameraInv.translate(eyeX, eyeY, eyeZ);
 
 		modelview.set(camera);
@@ -2964,7 +3299,8 @@ public class OldP3D extends PGraphics {
 	// PROJECTION
 
 	/**
-	 * Calls ortho() with the proper parameters for Processing's standard orthographic projection.
+	 * Calls ortho() with the proper parameters for Processing's standard
+	 * orthographic projection.
 	 */
 	@Override
 	public void ortho() {
@@ -2977,7 +3313,8 @@ public class OldP3D extends PGraphics {
 	 * Implementation partially based on Mesa's matrix.c.
 	 */
 	@Override
-	public void ortho(float left, float right, float bottom, float top, float near, float far) {
+	public void ortho(float left, float right, float bottom, float top,
+			float near, float far) {
 		float x = 2.0f / (right - left);
 		float y = 2.0f / (top - bottom);
 		float z = -2.0f / (far - near);
@@ -3001,9 +3338,15 @@ public class OldP3D extends PGraphics {
 	 * <LI>ortho()
 	 * <LI>perspective()
 	 * </UL>
-	 * Each of these three functions completely replaces the projection matrix with a new one. They can be called inside setup(), and their effects will be felt inside draw(). At the top of draw(), the projection matrix is not reset. Therefore the last projection function to be called always dominates. On resize, the default projection is always established, which has perspective.
+	 * Each of these three functions completely replaces the projection matrix
+	 * with a new one. They can be called inside setup(), and their effects will
+	 * be felt inside draw(). At the top of draw(), the projection matrix is not
+	 * reset. Therefore the last projection function to be called always
+	 * dominates. On resize, the default projection is always established, which
+	 * has perspective.
 	 * <P>
-	 * This behavior is pretty much familiar from OpenGL, except where functions replace matrices, rather than multiplying against the previous.
+	 * This behavior is pretty much familiar from OpenGL, except where functions
+	 * replace matrices, rather than multiplying against the previous.
 	 * <P>
 	 */
 	@Override
@@ -3027,12 +3370,14 @@ public class OldP3D extends PGraphics {
 	}
 
 	/**
-	 * Same as glFrustum(), except that it wipes out (rather than multiplies against) the current perspective matrix.
+	 * Same as glFrustum(), except that it wipes out (rather than multiplies
+	 * against) the current perspective matrix.
 	 * <P>
 	 * Implementation based on the explanation in the OpenGL blue book.
 	 */
 	@Override
-	public void frustum(float left, float right, float bottom, float top, float znear, float zfar) {
+	public void frustum(float left, float right, float bottom, float top,
+			float znear, float zfar) {
 
 		leftScreen = left;
 		rightScreen = right;
@@ -3042,7 +3387,11 @@ public class OldP3D extends PGraphics {
 		frustumMode = true;
 
 		// System.out.println(projection);
-		projection.set((2 * znear) / (right - left), 0, (right + left) / (right - left), 0, 0, (2 * znear) / (top - bottom), (top + bottom) / (top - bottom), 0, 0, 0, -(zfar + znear) / (zfar - znear), -(2 * zfar * znear) / (zfar - znear), 0, 0, -1, 0);
+		projection.set((2 * znear) / (right - left), 0, (right + left)
+				/ (right - left), 0, 0, (2 * znear) / (top - bottom),
+				(top + bottom) / (top - bottom), 0, 0, 0, -(zfar + znear)
+						/ (zfar - znear), -(2 * zfar * znear) / (zfar - znear),
+				0, 0, -1, 0);
 		updateProjection();
 	}
 
@@ -3074,13 +3423,19 @@ public class OldP3D extends PGraphics {
 
 	@Override
 	public float screenX(float x, float y, float z) {
-		float ax = modelview.m00 * x + modelview.m01 * y + modelview.m02 * z + modelview.m03;
-		float ay = modelview.m10 * x + modelview.m11 * y + modelview.m12 * z + modelview.m13;
-		float az = modelview.m20 * x + modelview.m21 * y + modelview.m22 * z + modelview.m23;
-		float aw = modelview.m30 * x + modelview.m31 * y + modelview.m32 * z + modelview.m33;
+		float ax = modelview.m00 * x + modelview.m01 * y + modelview.m02 * z
+				+ modelview.m03;
+		float ay = modelview.m10 * x + modelview.m11 * y + modelview.m12 * z
+				+ modelview.m13;
+		float az = modelview.m20 * x + modelview.m21 * y + modelview.m22 * z
+				+ modelview.m23;
+		float aw = modelview.m30 * x + modelview.m31 * y + modelview.m32 * z
+				+ modelview.m33;
 
-		float ox = projection.m00 * ax + projection.m01 * ay + projection.m02 * az + projection.m03 * aw;
-		float ow = projection.m30 * ax + projection.m31 * ay + projection.m32 * az + projection.m33 * aw;
+		float ox = projection.m00 * ax + projection.m01 * ay + projection.m02
+				* az + projection.m03 * aw;
+		float ow = projection.m30 * ax + projection.m31 * ay + projection.m32
+				* az + projection.m33 * aw;
 
 		if (ow != 0)
 			ox /= ow;
@@ -3089,13 +3444,19 @@ public class OldP3D extends PGraphics {
 
 	@Override
 	public float screenY(float x, float y, float z) {
-		float ax = modelview.m00 * x + modelview.m01 * y + modelview.m02 * z + modelview.m03;
-		float ay = modelview.m10 * x + modelview.m11 * y + modelview.m12 * z + modelview.m13;
-		float az = modelview.m20 * x + modelview.m21 * y + modelview.m22 * z + modelview.m23;
-		float aw = modelview.m30 * x + modelview.m31 * y + modelview.m32 * z + modelview.m33;
+		float ax = modelview.m00 * x + modelview.m01 * y + modelview.m02 * z
+				+ modelview.m03;
+		float ay = modelview.m10 * x + modelview.m11 * y + modelview.m12 * z
+				+ modelview.m13;
+		float az = modelview.m20 * x + modelview.m21 * y + modelview.m22 * z
+				+ modelview.m23;
+		float aw = modelview.m30 * x + modelview.m31 * y + modelview.m32 * z
+				+ modelview.m33;
 
-		float oy = projection.m10 * ax + projection.m11 * ay + projection.m12 * az + projection.m13 * aw;
-		float ow = projection.m30 * ax + projection.m31 * ay + projection.m32 * az + projection.m33 * aw;
+		float oy = projection.m10 * ax + projection.m11 * ay + projection.m12
+				* az + projection.m13 * aw;
+		float ow = projection.m30 * ax + projection.m31 * ay + projection.m32
+				* az + projection.m33 * aw;
 
 		if (ow != 0)
 			oy /= ow;
@@ -3104,13 +3465,19 @@ public class OldP3D extends PGraphics {
 
 	@Override
 	public float screenZ(float x, float y, float z) {
-		float ax = modelview.m00 * x + modelview.m01 * y + modelview.m02 * z + modelview.m03;
-		float ay = modelview.m10 * x + modelview.m11 * y + modelview.m12 * z + modelview.m13;
-		float az = modelview.m20 * x + modelview.m21 * y + modelview.m22 * z + modelview.m23;
-		float aw = modelview.m30 * x + modelview.m31 * y + modelview.m32 * z + modelview.m33;
+		float ax = modelview.m00 * x + modelview.m01 * y + modelview.m02 * z
+				+ modelview.m03;
+		float ay = modelview.m10 * x + modelview.m11 * y + modelview.m12 * z
+				+ modelview.m13;
+		float az = modelview.m20 * x + modelview.m21 * y + modelview.m22 * z
+				+ modelview.m23;
+		float aw = modelview.m30 * x + modelview.m31 * y + modelview.m32 * z
+				+ modelview.m33;
 
-		float oz = projection.m20 * ax + projection.m21 * ay + projection.m22 * az + projection.m23 * aw;
-		float ow = projection.m30 * ax + projection.m31 * ay + projection.m32 * az + projection.m33 * aw;
+		float oz = projection.m20 * ax + projection.m21 * ay + projection.m22
+				* az + projection.m23 * aw;
+		float ow = projection.m30 * ax + projection.m31 * ay + projection.m32
+				* az + projection.m33 * aw;
 
 		if (ow != 0)
 			oz /= ow;
@@ -3119,39 +3486,57 @@ public class OldP3D extends PGraphics {
 
 	@Override
 	public float modelX(float x, float y, float z) {
-		float ax = modelview.m00 * x + modelview.m01 * y + modelview.m02 * z + modelview.m03;
-		float ay = modelview.m10 * x + modelview.m11 * y + modelview.m12 * z + modelview.m13;
-		float az = modelview.m20 * x + modelview.m21 * y + modelview.m22 * z + modelview.m23;
-		float aw = modelview.m30 * x + modelview.m31 * y + modelview.m32 * z + modelview.m33;
+		float ax = modelview.m00 * x + modelview.m01 * y + modelview.m02 * z
+				+ modelview.m03;
+		float ay = modelview.m10 * x + modelview.m11 * y + modelview.m12 * z
+				+ modelview.m13;
+		float az = modelview.m20 * x + modelview.m21 * y + modelview.m22 * z
+				+ modelview.m23;
+		float aw = modelview.m30 * x + modelview.m31 * y + modelview.m32 * z
+				+ modelview.m33;
 
-		float ox = cameraInv.m00 * ax + cameraInv.m01 * ay + cameraInv.m02 * az + cameraInv.m03 * aw;
-		float ow = cameraInv.m30 * ax + cameraInv.m31 * ay + cameraInv.m32 * az + cameraInv.m33 * aw;
+		float ox = cameraInv.m00 * ax + cameraInv.m01 * ay + cameraInv.m02 * az
+				+ cameraInv.m03 * aw;
+		float ow = cameraInv.m30 * ax + cameraInv.m31 * ay + cameraInv.m32 * az
+				+ cameraInv.m33 * aw;
 
 		return (ow != 0) ? ox / ow : ox;
 	}
 
 	@Override
 	public float modelY(float x, float y, float z) {
-		float ax = modelview.m00 * x + modelview.m01 * y + modelview.m02 * z + modelview.m03;
-		float ay = modelview.m10 * x + modelview.m11 * y + modelview.m12 * z + modelview.m13;
-		float az = modelview.m20 * x + modelview.m21 * y + modelview.m22 * z + modelview.m23;
-		float aw = modelview.m30 * x + modelview.m31 * y + modelview.m32 * z + modelview.m33;
+		float ax = modelview.m00 * x + modelview.m01 * y + modelview.m02 * z
+				+ modelview.m03;
+		float ay = modelview.m10 * x + modelview.m11 * y + modelview.m12 * z
+				+ modelview.m13;
+		float az = modelview.m20 * x + modelview.m21 * y + modelview.m22 * z
+				+ modelview.m23;
+		float aw = modelview.m30 * x + modelview.m31 * y + modelview.m32 * z
+				+ modelview.m33;
 
-		float oy = cameraInv.m10 * ax + cameraInv.m11 * ay + cameraInv.m12 * az + cameraInv.m13 * aw;
-		float ow = cameraInv.m30 * ax + cameraInv.m31 * ay + cameraInv.m32 * az + cameraInv.m33 * aw;
+		float oy = cameraInv.m10 * ax + cameraInv.m11 * ay + cameraInv.m12 * az
+				+ cameraInv.m13 * aw;
+		float ow = cameraInv.m30 * ax + cameraInv.m31 * ay + cameraInv.m32 * az
+				+ cameraInv.m33 * aw;
 
 		return (ow != 0) ? oy / ow : oy;
 	}
 
 	@Override
 	public float modelZ(float x, float y, float z) {
-		float ax = modelview.m00 * x + modelview.m01 * y + modelview.m02 * z + modelview.m03;
-		float ay = modelview.m10 * x + modelview.m11 * y + modelview.m12 * z + modelview.m13;
-		float az = modelview.m20 * x + modelview.m21 * y + modelview.m22 * z + modelview.m23;
-		float aw = modelview.m30 * x + modelview.m31 * y + modelview.m32 * z + modelview.m33;
+		float ax = modelview.m00 * x + modelview.m01 * y + modelview.m02 * z
+				+ modelview.m03;
+		float ay = modelview.m10 * x + modelview.m11 * y + modelview.m12 * z
+				+ modelview.m13;
+		float az = modelview.m20 * x + modelview.m21 * y + modelview.m22 * z
+				+ modelview.m23;
+		float aw = modelview.m30 * x + modelview.m31 * y + modelview.m32 * z
+				+ modelview.m33;
 
-		float oz = cameraInv.m20 * ax + cameraInv.m21 * ay + cameraInv.m22 * az + cameraInv.m23 * aw;
-		float ow = cameraInv.m30 * ax + cameraInv.m31 * ay + cameraInv.m32 * az + cameraInv.m33 * aw;
+		float oz = cameraInv.m20 * ax + cameraInv.m21 * ay + cameraInv.m22 * az
+				+ cameraInv.m23 * aw;
+		float ow = cameraInv.m30 * ax + cameraInv.m31 * ay + cameraInv.m32 * az
+				+ cameraInv.m33 * aw;
 
 		return (ow != 0) ? oz / ow : oz;
 	}
@@ -3357,7 +3742,8 @@ public class OldP3D extends PGraphics {
 		lightSpecular(0, 0, 0);
 
 		ambientLight(colorModeX * 0.5f, colorModeY * 0.5f, colorModeZ * 0.5f);
-		directionalLight(colorModeX * 0.5f, colorModeY * 0.5f, colorModeZ * 0.5f, 0, 0, -1);
+		directionalLight(colorModeX * 0.5f, colorModeY * 0.5f,
+				colorModeZ * 0.5f, 0, 0, -1);
 
 		colorMode = colorModeSaved;
 
@@ -3384,12 +3770,16 @@ public class OldP3D extends PGraphics {
 	}
 
 	/**
-	 * Add an ambient light based on the current color mode. This version includes an (x, y, z) position for situations where the falloff distance is used.
+	 * Add an ambient light based on the current color mode. This version
+	 * includes an (x, y, z) position for situations where the falloff distance
+	 * is used.
 	 */
 	@Override
-	public void ambientLight(float r, float g, float b, float x, float y, float z) {
+	public void ambientLight(float r, float g, float b, float x, float y,
+			float z) {
 		if (lightCount == MAX_LIGHTS) {
-			throw new RuntimeException("can only create " + MAX_LIGHTS + " lights");
+			throw new RuntimeException("can only create " + MAX_LIGHTS
+					+ " lights");
 		}
 		colorCalc(r, g, b);
 		lightDiffuse[lightCount][0] = calcR;
@@ -3406,9 +3796,11 @@ public class OldP3D extends PGraphics {
 	}
 
 	@Override
-	public void directionalLight(float r, float g, float b, float nx, float ny, float nz) {
+	public void directionalLight(float r, float g, float b, float nx, float ny,
+			float nz) {
 		if (lightCount == MAX_LIGHTS) {
-			throw new RuntimeException("can only create " + MAX_LIGHTS + " lights");
+			throw new RuntimeException("can only create " + MAX_LIGHTS
+					+ " lights");
 		}
 		colorCalc(r, g, b);
 		lightDiffuse[lightCount][0] = calcR;
@@ -3429,7 +3821,8 @@ public class OldP3D extends PGraphics {
 	@Override
 	public void pointLight(float r, float g, float b, float x, float y, float z) {
 		if (lightCount == MAX_LIGHTS) {
-			throw new RuntimeException("can only create " + MAX_LIGHTS + " lights");
+			throw new RuntimeException("can only create " + MAX_LIGHTS
+					+ " lights");
 		}
 		colorCalc(r, g, b);
 		lightDiffuse[lightCount][0] = calcR;
@@ -3450,9 +3843,11 @@ public class OldP3D extends PGraphics {
 	}
 
 	@Override
-	public void spotLight(float r, float g, float b, float x, float y, float z, float nx, float ny, float nz, float angle, float concentration) {
+	public void spotLight(float r, float g, float b, float x, float y, float z,
+			float nx, float ny, float nz, float angle, float concentration) {
 		if (lightCount == MAX_LIGHTS) {
-			throw new RuntimeException("can only create " + MAX_LIGHTS + " lights");
+			throw new RuntimeException("can only create " + MAX_LIGHTS
+					+ " lights");
 		}
 		colorCalc(r, g, b);
 		lightDiffuse[lightCount][0] = calcR;
@@ -3477,7 +3872,8 @@ public class OldP3D extends PGraphics {
 	}
 
 	/**
-	 * Set the light falloff rates for the last light that was created. Default is lightFalloff(1, 0, 0).
+	 * Set the light falloff rates for the last light that was created. Default
+	 * is lightFalloff(1, 0, 0).
 	 */
 	@Override
 	public void lightFalloff(float constant, float linear, float quadratic) {
@@ -3502,33 +3898,55 @@ public class OldP3D extends PGraphics {
 	}
 
 	/**
-	 * internal function to set the light position based on the current modelview matrix.
+	 * internal function to set the light position based on the current
+	 * modelview matrix.
 	 */
 	protected void lightPosition(int num, float x, float y, float z) {
 		lightPositionVec.set(x, y, z);
 		modelview.mult(lightPositionVec, lightPosition[num]);
 		/*
-		 * lightPosition[num][0] = modelview.m00*x + modelview.m01*y + modelview.m02*z + modelview.m03; lightPosition[num][1] = modelview.m10*x + modelview.m11*y + modelview.m12*z + modelview.m13; lightPosition[num][2] = modelview.m20*x + modelview.m21*y + modelview.m22*z + modelview.m23;
+		 * lightPosition[num][0] = modelview.m00*x + modelview.m01*y +
+		 * modelview.m02*z + modelview.m03; lightPosition[num][1] =
+		 * modelview.m10*x + modelview.m11*y + modelview.m12*z + modelview.m13;
+		 * lightPosition[num][2] = modelview.m20*x + modelview.m21*y +
+		 * modelview.m22*z + modelview.m23;
 		 */
 	}
 
 	/**
-	 * internal function to set the light direction based on the current modelview matrix.
+	 * internal function to set the light direction based on the current
+	 * modelview matrix.
 	 */
 	protected void lightDirection(int num, float x, float y, float z) {
-		lightNormal[num].set(modelviewInv.m00 * x + modelviewInv.m10 * y + modelviewInv.m20 * z + modelviewInv.m30, modelviewInv.m01 * x + modelviewInv.m11 * y + modelviewInv.m21 * z + modelviewInv.m31, modelviewInv.m02 * x + modelviewInv.m12 * y + modelviewInv.m22 * z + modelviewInv.m32);
+		lightNormal[num].set(modelviewInv.m00 * x + modelviewInv.m10 * y
+				+ modelviewInv.m20 * z + modelviewInv.m30, modelviewInv.m01 * x
+				+ modelviewInv.m11 * y + modelviewInv.m21 * z
+				+ modelviewInv.m31, modelviewInv.m02 * x + modelviewInv.m12 * y
+				+ modelviewInv.m22 * z + modelviewInv.m32);
 		lightNormal[num].normalize();
 
 		/*
-		 * lightDirectionVec.set(x, y, z); System.out.println("dir vec " + lightDirectionVec); //modelviewInv.mult(lightDirectionVec, lightNormal[num]); modelviewInv.cmult(lightDirectionVec, lightNormal[num]); System.out.println("cmult vec " + lightNormal[num]); lightNormal[num].normalize(); System.out.println("setting light direction " + lightNormal[num]);
+		 * lightDirectionVec.set(x, y, z); System.out.println("dir vec " +
+		 * lightDirectionVec); //modelviewInv.mult(lightDirectionVec,
+		 * lightNormal[num]); modelviewInv.cmult(lightDirectionVec,
+		 * lightNormal[num]); System.out.println("cmult vec " +
+		 * lightNormal[num]); lightNormal[num].normalize();
+		 * System.out.println("setting light direction " + lightNormal[num]);
 		 */
 
 		/*
-		 * // Multiply by inverse transpose. lightNormal[num][0] = modelviewInv.m00*x + modelviewInv.m10*y + modelviewInv.m20*z + modelviewInv.m30; lightNormal[num][1] = modelviewInv.m01*x + modelviewInv.m11*y + modelviewInv.m21*z + modelviewInv.m31; lightNormal[num][2] = modelviewInv.m02*x + modelviewInv.m12*y + modelviewInv.m22*z + modelviewInv.m32;
+		 * // Multiply by inverse transpose. lightNormal[num][0] =
+		 * modelviewInv.m00*x + modelviewInv.m10*y + modelviewInv.m20*z +
+		 * modelviewInv.m30; lightNormal[num][1] = modelviewInv.m01*x +
+		 * modelviewInv.m11*y + modelviewInv.m21*z + modelviewInv.m31;
+		 * lightNormal[num][2] = modelviewInv.m02*x + modelviewInv.m12*y +
+		 * modelviewInv.m22*z + modelviewInv.m32;
 		 * 
-		 * float n = mag(lightNormal[num][0], lightNormal[num][1], lightNormal[num][2]); if (n == 0 || n == 1) return;
+		 * float n = mag(lightNormal[num][0], lightNormal[num][1],
+		 * lightNormal[num][2]); if (n == 0 || n == 1) return;
 		 * 
-		 * lightNormal[num][0] /= n; lightNormal[num][1] /= n; lightNormal[num][2] /= n;
+		 * lightNormal[num][0] /= n; lightNormal[num][1] /= n;
+		 * lightNormal[num][2] /= n;
 		 */
 	}
 
@@ -3551,6 +3969,30 @@ public class OldP3D extends PGraphics {
 	protected void backgroundImpl() {
 		Arrays.fill(pixels, backgroundColor);
 		Arrays.fill(zbuffer, Float.MAX_VALUE);
+	}
+
+	public PShape loadShape(String filename) {
+		String extension = PApplet.getExtension(filename);
+
+		PShapeSVG svg = null;
+
+		if (extension.equals("svg")) {
+			svg = new PShapeSVG(parent, filename);
+
+		} else if (extension.equals("svgz")) {
+			try {
+				InputStream input = new GZIPInputStream(
+						parent.createInput(filename));
+				XML xml = new XML(PApplet.createReader(input));
+				svg = new PShapeSVG(xml);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		} else {
+			PGraphics.showWarning("Unsupported format");
+		}
+
+		return svg;
 	}
 
 	// ////////////////////////////////////////////////////////////
@@ -3655,17 +4097,22 @@ public class OldP3D extends PGraphics {
 	}
 
 	/*
-	 * private final void cross(float a0, float a1, float a2, float b0, float b1, float b2, float[] out) { out[0] = a1*b2 - a2*b1; out[1] = a2*b0 - a0*b2; out[2] = a0*b1 - a1*b0; }
+	 * private final void cross(float a0, float a1, float a2, float b0, float
+	 * b1, float b2, float[] out) { out[0] = a1*b2 - a2*b1; out[1] = a2*b0 -
+	 * a0*b2; out[2] = a0*b1 - a1*b0; }
 	 */
 
-	private final void cross(float a0, float a1, float a2, float b0, float b1, float b2, PVector out) {
+	private final void cross(float a0, float a1, float a2, float b0, float b1,
+			float b2, PVector out) {
 		out.x = a1 * b2 - a2 * b1;
 		out.y = a2 * b0 - a0 * b2;
 		out.z = a0 * b1 - a1 * b0;
 	}
 
 	/*
-	 * private final void cross(float[] a, float[] b, float[] out) { out[0] = a[1]*b[2] - a[2]*b[1]; out[1] = a[2]*b[0] - a[0]*b[2]; out[2] = a[0]*b[1] - a[1]*b[0]; }
+	 * private final void cross(float[] a, float[] b, float[] out) { out[0] =
+	 * a[1]*b[2] - a[2]*b[1]; out[1] = a[2]*b[0] - a[0]*b[2]; out[2] = a[0]*b[1]
+	 * - a[1]*b[0]; }
 	 */
 
 }
