@@ -42,7 +42,7 @@ public class OldP3D extends PGraphics {
 	// / height minus one (useful for many calculations)
 	protected int height1;
 
-	public static final String OldP3D = "ixagon.OldP3D";
+	public static final String NOSTALGIA = "ixagon.OldP3D";
 	
 	protected boolean[] hints = new boolean[HINT_COUNT];
 	
