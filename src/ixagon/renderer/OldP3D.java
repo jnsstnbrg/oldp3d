@@ -1,4 +1,4 @@
-package ixagon;
+package ixagon.renderer;
 
 import java.awt.Toolkit;
 import java.awt.image.*;
@@ -42,7 +42,7 @@ public class OldP3D extends PGraphics {
 	// / height minus one (useful for many calculations)
 	protected int height1;
 
-	public static final String NOSTALGIA = "ixagon.OldP3D";
+	public static final String NOSTALGIA = "ixagon.renderer.OldP3D";
 	
 	protected boolean[] hints = new boolean[HINT_COUNT];
 	
@@ -204,7 +204,7 @@ public class OldP3D extends PGraphics {
 	static protected boolean s_enableAccurateTextures = false; // maybe just use smooth instead?
 
 	/** Used for anti-aliased and perspective corrected rendering. */
-	public PSmoothTriangle smoothTriangle;
+	public JSmoothTriangle smoothTriangle;
 
 	// ........................................................
 
@@ -256,13 +256,13 @@ public class OldP3D extends PGraphics {
 
 	// lines
 	static final int DEFAULT_LINES = 512;
-	public PLine line; // used for drawing
+	public JLine line; // used for drawing
 	protected int[][] lines = new int[DEFAULT_LINES][LINE_FIELD_COUNT];
 	protected int lineCount;
 
 	// triangles
 	static final int DEFAULT_TRIANGLES = 256;
-	public PTriangle triangle;
+	public JTriangle triangle;
 	protected int[][] triangles = new int[DEFAULT_TRIANGLES][TRIANGLE_FIELD_COUNT];
 	protected float triangleColors[][][] = new float[DEFAULT_TRIANGLES][3][TRI_COLOR_COUNT];
 	protected int triangleCount; // total number of triangles
@@ -380,9 +380,9 @@ public class OldP3D extends PGraphics {
 			Arrays.fill(zbuffer, Float.MAX_VALUE);
 		}
 
-		line = new PLine(this);
-		triangle = new PTriangle(this);
-		smoothTriangle = new PSmoothTriangle(this);
+		line = new JLine(this);
+		triangle = new JTriangle(this);
+		smoothTriangle = new JSmoothTriangle(this);
 	}
 
 	// public void dispose()

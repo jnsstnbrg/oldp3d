@@ -1,4 +1,4 @@
-package ixagon;
+package ixagon.renderer;
 
 import processing.core.PConstants;
 import processing.core.PGraphics;
@@ -35,7 +35,7 @@ import processing.core.PMatrix3D;
  * Based off of the PPolygon class in old versions of Processing.
  * Name and location of this class will change in a future release.
  */
-public class PSmoothTriangle implements PConstants {
+public class JSmoothTriangle implements PConstants {
 
   // really this is "debug" but..
   private static final boolean EWJORDAN = false;
@@ -137,7 +137,7 @@ public class PSmoothTriangle implements PConstants {
   }
 
 
-  public PSmoothTriangle(OldP3D iparent) {
+  public JSmoothTriangle(OldP3D iparent) {
     parent = iparent;
     reset(0);
   }

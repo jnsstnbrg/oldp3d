@@ -1,4 +1,4 @@
-package ixagon;
+package ixagon.renderer;
 
 import processing.core.PConstants;
 import processing.core.PImage;
@@ -33,7 +33,7 @@ import processing.core.PMatrix3D;
  * <P>
  * Originally written by sami (www.sumea.com)
  */
-public class PTriangle implements PConstants
+public class JTriangle implements PConstants
 {
   static final float PIXEL_CENTER = 0.5f;  // for polygon aa
 
@@ -232,7 +232,7 @@ public class PTriangle implements PConstants
   private boolean firstSegment;
 
 
-  public PTriangle(OldP3D g) {
+  public JTriangle(OldP3D g) {
     x_array = new float[3];
     y_array = new float[3];
     z_array = new float[3];

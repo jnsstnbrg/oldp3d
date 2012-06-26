@@ -1,4 +1,4 @@
-package ixagon;
+package ixagon.renderer;
 
 import processing.core.PConstants;
 import processing.core.PGraphics;
@@ -33,7 +33,7 @@ import processing.core.PGraphics;
  * @author rocha
  * @author fry
  */
-public class PLine implements PConstants
+public class JLine implements PConstants
 {
   private int[]   m_pixels;
   private float[] m_zbuffer;
@@ -103,7 +103,7 @@ public class PLine implements PConstants
   private PGraphics parent;
 
 
-  public PLine(PGraphics g) {
+  public JLine(PGraphics g) {
     INTERPOLATE_Z = false;
 
     x_array = new float[2];
